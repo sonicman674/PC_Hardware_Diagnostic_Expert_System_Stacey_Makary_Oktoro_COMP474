@@ -12,13 +12,6 @@
 
 This repository is the canonical source archive for the project deliverables. The teaching assistants should use the repository URL above to access the code and supporting source documentation independently.
 
-### Access Notes for Evaluators
-
-- The deliverable source artifacts are stored at the repository root.
-- The key files for grading are `facts.txt`, `rules.txt`, `driver.clp`, `design.txt`, and `test-cases.txt`.
-- If the repository is private at grading time, course staff must be granted read access to this exact repository before evaluation.
-- The repository URL above should be included in the deliverable submission so the project can be processed independently.
-
 ## Project Overview
 
 This project implements a CLIPS-based expert system for diagnosing common PC hardware failures. The knowledge domain focuses on practical desktop troubleshooting for:
