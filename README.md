@@ -7,7 +7,7 @@
 ## GitHub Submission Details
 
 - **GitHub username:** `sonicman674`
-- **Repository URL:** `https://github.com/sonicman674/comp474project2026`
+- **Repository URL:** `https://github.com/sonicman674/PC_Hardware_Diagnostic_Expert_System_Stacey_Makary_Oktoro_COMP474`
 - **Canonical project title:** `PC Hardware Diagnostic Expert System`
 
 This repository is the canonical source archive for the project deliverables. The teaching assistants should use the repository URL above to access the code and supporting source documentation independently.
