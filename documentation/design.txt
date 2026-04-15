@@ -1,0 +1,292 @@
+# Knowledge Base Design and D2 Improvement Report
+
+## 1. Itemized Summary of D1 Improvements
+
+This section addresses D2 TODO 1(a) and D2 TODO 1(b). It summarizes the evaluator feedback from D1, our own assessment of that feedback, and the concrete changes made in D2.
+
+### 1.1 Evaluator feedback on D1
+
+1. Important evidence was spread across multiple files and was not visible enough in the main graded document.
+2. References were described too generically, for example "manuals" or "vendor documentation," instead of naming specific sources.
+3. The design write-up described what the knowledge base contained, but not clearly enough why it helps the user achieve the diagnosis goal or why it is explainable, maintainable, readable, and reusable.
+4. Verification and validation were documented narratively, but not in a way that was easy to reproduce independently.
+5. The D1 implementation used symbolic confidence labels only. It did not actually model uncertain knowledge with a probabilistic theory or a possibilistic theory.
+6. The D1 multi-symptom rules were documented as strengthening rules, but in practice they often did not strengthen anything because the earlier single-symptom rule had already asserted the same diagnosis.
+
+### 1.2 Our own assessment of the D1 feedback
+
+1. The old `diagnostic-conclusion` template was too narrow because it only stored a symbolic confidence label and an action. That made it hard to trace why a conclusion was produced and impossible to represent probabilistic and fuzzy scores cleanly.
+2. The old architecture duplicated some user-facing knowledge in `driver.clp`, making the interaction layer less maintainable than the rest of the knowledge base.
+3. The D1 test cases showed coverage, but not a repeatable command-by-command procedure that an evaluator could run with the same expectations.
+
+### 1.3 Concrete D2 changes made in response
+
+1. The knowledge base now has a unified `diagnostic-conclusion` template with `theory`, `score`, `label`, `rule-id`, and `rationale`, making every conclusion traceable and independently verifiable.
+2. D2 adds a numeric Certainty Factors layer using `cf-evidence` facts and explicit probabilistic rules.
+3. D2 adds a Fuzzy Logic layer using `fuzzy-variable`, `fuzzy-set`, `sensor-reading`, and `fuzzy-assessment` facts plus explicit fuzzy inference rules.
+4. The D1 crisp strengthening issue was fixed by replacing weaker crisp conclusions with stronger multi-symptom conclusions instead of silently preventing the strengthening rule from firing.
+5. The driver now collects symptom certainty factors and optional quantitative sensor readings so the uncertain reasoning layers can be exercised directly by an evaluator.
+6. `test-cases.txt` was rewritten as a reproducible verification artifact instead of only a narrative list of PASS statements.
+7. This document now explicitly states the design rationale, quality attributes, references, and traceability that were previously easy to miss.
+
+### 1.4 Independent verification of each change
+
+1. The template changes can be verified in `facts.txt` by inspecting `cf-evidence`, `fuzzy-variable`, `fuzzy-set`, `sensor-reading`, `fuzzy-assessment`, and the new `diagnostic-conclusion`.
+2. The probabilistic changes can be verified in `rules.txt` by inspecting the `cf-*` rules and by reproducing the Certainty Factor tests in `test-cases.txt`.
+3. The fuzzy changes can be verified in `rules.txt` by inspecting the `fuzzify-reading` rule and the `fuzzy-*` rules, then running the fuzzy tests in `test-cases.txt`.
+4. The D1 strengthening fix can be verified by comparing the old limitation with the new `strengthen-crisp-*` rules in `rules.txt`.
+5. The new input workflow can be verified by loading `driver.clp` and running `(run-diagnosis)`.
+
+## 2. Knowledge Representation Overview
+
+### 2.1 Design goal
+
+The expert system helps a user diagnose likely PC hardware faults by combining:
+
+1. direct user-reported symptoms,
+2. probabilistically uncertain evidence using Certainty Factors, and
+3. possibilistically uncertain quantitative readings using Fuzzy Logic.
+
+This helps the user because real hardware diagnosis is rarely binary. A user can be only partially sure that a symptom occurred, and measured values such as temperature, boot time, and drive health naturally belong to gradual categories instead of sharp true/false boundaries.
+
+### 2.2 Main templates
+
+1. `symptom`: catalog of all supported symptoms.
+2. `component`: documents the components and typical failure modes.
+3. `failure-scenario`: registry of diagnosable outcomes and recommended actions.
+4. `symptom-indicator`: D1 crisp symptom-to-scenario mapping.
+5. `cf-evidence`: D2 probabilistic evidence weights for Certainty Factors.
+6. `fuzzy-variable`: D2 quantitative variables used for possibilistic reasoning.
+7. `fuzzy-set`: trapezoidal membership definitions for each fuzzy variable.
+8. `reported-symptom`: runtime symptom plus user certainty factor.
+9. `sensor-reading`: runtime numeric input used by fuzzy rules.
+10. `fuzzy-assessment`: intermediate membership result created by fuzzification.
+11. `diagnostic-conclusion`: unified output record for crisp, probabilistic, and fuzzy rules.
+12. `session-state` and `prompt-shown`: control and trace the interaction session.
+
+### 2.3 Why this structure helps the user
+
+1. `failure-scenario` stores the recommended action with the scenario, so the system always reports not just a diagnosis but also what to do next.
+2. Splitting crisp, probabilistic, and fuzzy knowledge into different fact types lets the system explain whether a diagnosis came from direct symbolic knowledge, weighted evidence, or gradual sensor readings.
+3. Storing `rule-id` and `rationale` in each conclusion makes the output explainable: the evaluator can trace every result to the rule and the reason that produced it.
+4. Using symptoms, weighted evidence, and sensor readings together improves completeness because the system can reason even when one kind of evidence is missing.
+
+## 3. D1 Crisp Baseline Retained in D2
+
+The D1 knowledge base remains as the explainable baseline:
+
+1. Each reported symptom still maps to a failure scenario through `symptom-indicator`.
+2. Symbolic `strong`, `moderate`, and `weak` values are converted to numeric scores for unified output.
+3. The previous multi-symptom limitation was fixed. A stronger crisp conclusion now replaces a weaker one when corroborating symptoms are present.
+
+This keeps D1 traceable while making room for the D2 uncertainty layers.
+
+## 4. D2 TODO 2: Probabilistic Uncertainty with Certainty Factors
+
+### 4.1 Why Certainty Factors were chosen
+
+Certainty Factors fit this project better than Dempster-Shafer Theory for three reasons:
+
+1. The existing D1 rules already resembled weighted symptom-to-diagnosis rules, so Certainty Factors extend the original structure naturally.
+2. A user can realistically assign partial confidence to a symptom, which multiplies cleanly with a rule weight.
+3. Positive evidence combination is simple enough to implement and explain in CLIPS without introducing a much heavier belief-mass formalism.
+
+### 4.2 Probabilistic facts added
+
+The D2 probabilistic fact extension is the set of `cf-evidence` facts in `facts.txt`. Each fact maps a symptom to a scenario with a numeric weight and a rationale. Examples:
+
+1. `no-power-at-all -> psu-failure (0.95)`
+2. `shutdown-under-load -> psu-inadequate-wattage (0.80)`
+3. `screen-artifacts -> gpu-overheating-or-memory (0.86)`
+4. `storage-not-detected -> storage-connection-failure (0.90)`
+5. `time-date-reset -> cmos-battery-dead (0.92)`
+
+More than five such facts are included so the uncertain layer covers all three modules.
+
+### 4.3 Certainty Factor inference model
+
+For a single symptom:
+
+`CF(conclusion) = CF(user symptom) * CF(rule weight)`
+
+For corroborating positive evidence:
+
+`CFcombined = CF1 + CF2 * (1 - CF1)`
+
+This is implemented in `rules.txt` through `clamp-score` and `combine-cf`.
+
+### 4.4 Probabilistic rules added
+
+The D2 probabilistic rule layer includes more than 10 useful rules:
+
+1. single-evidence rules such as `cf-psu-failure-from-no-power`,
+2. single-evidence rules for display, memory, and storage faults,
+3. combination rules such as `cf-psu-combination`,
+4. combination rules such as `cf-gpu-combination`,
+5. combination rules such as `cf-storage-combination`.
+
+These rules are useful because they do more than restate D1 labels. They compute numeric support scores from uncertain evidence and combine multiple observations when available.
+
+## 5. D2 TODO 3: Possibilistic Uncertainty with Fuzzy Logic
+
+### 5.1 Why Fuzzy Logic was chosen
+
+Fuzzy Logic is appropriate because several variables in PC diagnosis are vague by nature:
+
+1. a CPU temperature can be normal, elevated, or critical,
+2. voltage quality can be stable, borderline, or unstable,
+3. storage health can be poor or degraded without a single sharp cutoff,
+4. boot time can become gradually slow before it becomes catastrophic.
+
+Using hard thresholds for these variables would throw away information near the boundary values.
+
+### 5.2 Fuzzy facts added
+
+The D2 fuzzy fact extension includes:
+
+1. five `fuzzy-variable` facts,
+2. fifteen `fuzzy-set` facts,
+3. runtime `sensor-reading` facts supplied by the user,
+4. runtime `fuzzy-assessment` facts produced by fuzzification.
+
+The five main fuzzy variables are:
+
+1. `cpu-temperature`
+2. `gpu-temperature`
+3. `voltage-stability`
+4. `storage-health`
+5. `boot-time`
+
+### 5.3 Membership design
+
+Trapezoidal fuzzy sets are used because they are simple, transparent, and easy to verify in CLIPS. Each set is defined by four points `a-b-c-d`. Examples:
+
+1. `cpu-temperature`: `normal`, `elevated`, `critical`
+2. `gpu-temperature`: `normal`, `hot`, `critical`
+3. `voltage-stability`: `unstable`, `borderline`, `stable`
+4. `storage-health`: `poor`, `degraded`, `good`
+5. `boot-time`: `short`, `slow`, `severe`
+
+### 5.4 Fuzzy inference model
+
+1. `fuzzify-reading` computes a membership degree for every applicable fuzzy set.
+2. Fuzzy diagnosis rules combine a membership degree with another degree or a symptom certainty factor.
+3. Conjunction is modeled with the minimum operator through `fuzzy-and`.
+4. The resulting degree becomes the fuzzy score recorded in `diagnostic-conclusion`.
+
+### 5.5 Fuzzy rules added
+
+The D2 fuzzy layer includes more than 10 useful rules, for example:
+
+1. `fuzzy-cpu-critical`
+2. `fuzzy-cpu-elevated-and-freezing`
+3. `fuzzy-voltage-unstable-shutdown`
+4. `fuzzy-voltage-unstable-intermittent`
+5. `fuzzy-voltage-borderline-no-power`
+6. `fuzzy-gpu-hot-and-artifacts`
+7. `fuzzy-gpu-critical-no-display`
+8. `fuzzy-storage-poor-and-slow`
+9. `fuzzy-storage-degraded-boot`
+10. `fuzzy-boot-severe`
+11. `fuzzy-boot-slow-and-storage-poor`
+
+These are useful because they convert gradual numeric evidence into diagnoses that the crisp layer alone cannot model.
+
+## 6. D2 TODO 4: Quality Attributes and Guidelines
+
+### 6.1 Selected quality attributes and justification
+
+We selected four primary quality attributes:
+
+1. Explainability: required because the system should justify why it produced each diagnosis.
+2. Maintainability: required because D2 expands the rule base significantly and future deliverables may extend it further.
+3. Consistency: required because three reasoning styles now coexist in one knowledge base.
+4. Traceability: required because evaluators must be able to verify where a conclusion came from.
+
+We also improve readability and modularity as supporting attributes.
+
+### 6.2 How the quality guidelines were applied
+
+#### Explainability
+
+Applied by:
+
+1. storing `rule-id` in every conclusion,
+2. storing `rationale` in every conclusion,
+3. printing theory-specific summaries in `rules.txt`,
+4. keeping recommended actions attached to `failure-scenario`.
+
+Impact:
+
+Positive. Each conclusion states not only what was inferred, but also which rule produced it and why.
+
+#### Maintainability
+
+Applied by:
+
+1. separating crisp indicators, Certainty Factor evidence, and fuzzy definitions into different templates,
+2. moving `recommended-action` into `failure-scenario` so it is not duplicated across multiple rules,
+3. centralizing helper functions such as `combine-cf` and `trapezoid-membership`.
+
+Impact:
+
+Positive. Reusable actions and helper functions reduce duplication and make later edits safer.
+
+#### Consistency
+
+Applied by:
+
+1. using one naming scheme across files,
+2. using one normalized score range `[0,1]` for all three theories,
+3. converting symbolic D1 strengths into numeric scores through `strength-to-score`,
+4. using one output template for all conclusions.
+
+Impact:
+
+Mostly positive. A shared score range makes cross-theory output easier to compare. The trade-off is that different theories are still semantically different, so the score should not be treated as mathematically identical across theories.
+
+#### Traceability
+
+Applied by:
+
+1. keeping symptom IDs, scenario IDs, and rule IDs explicit,
+2. documenting the formulas and fuzzy variables in this file,
+3. aligning each test case in `test-cases.txt` with concrete rules and facts in code.
+
+Impact:
+
+Positive. An evaluator can inspect the knowledge base, run a test, and tie the observed output back to a specific theory and rule.
+
+## 7. Naming Scheme
+
+1. Symptom IDs: lowercase hyphenated natural language, for example `no-power-at-all`
+2. Scenario IDs: component-then-failure, for example `psu-failure`
+3. Rule names:
+   - crisp strengthening: `strengthen-crisp-*`
+   - probabilistic: `cf-*`
+   - fuzzy: `fuzzy-*`
+4. Module names: hyphenated domain pairs such as `power-motherboard`
+5. Template slots: lowercase hyphenated names such as `recommended-action`
+
+This naming scheme was kept consistent across D1 and D2 to improve readability and maintainability.
+
+## 8. Independent Verification Map
+
+1. D1 baseline retained and strengthened: `facts.txt` and `rules.txt`
+2. Certainty Factors extension: `cf-evidence` facts plus `cf-*` rules
+3. Fuzzy Logic extension: `fuzzy-variable`, `fuzzy-set`, `sensor-reading`, `fuzzy-assessment`, `fuzzify-reading`, and `fuzzy-*` rules
+4. Interactive input support: `driver.clp`
+5. Verification procedure: `test-cases.txt`
+
+## 9. Authoritative References
+
+The following specific references informed the knowledge representation and recommended actions:
+
+1. Intel, `Intel Processor Diagnostic Tool - User Guide`
+2. MemTest86, `MemTest86 User Guide`
+3. NVIDIA, `NVIDIA Driver Installation and Clean Install Documentation`
+4. Dell Support, `Desktop BIOS Beep Codes and Error Messages`
+5. HP Support, `Desktop PCs - Computer Does Not Start and Emits an LED or Beep Code`
+6. Intel and ATX ecosystem documentation, `ATX12V Power Supply Design Guide`
+
+These are named explicitly so the evaluator can verify that the system was grounded in authoritative sources rather than vague source categories.

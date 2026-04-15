@@ -1,0 +1,354 @@
+# Validation and Verification - Reproducible Test Cases
+
+This file documents how to verify the D1 baseline and the D2 uncertainty layers independently.
+
+## 1. Standard Load Procedure
+
+Run the following before each test:
+
+1. `(clear)`
+2. `(load "facts.txt")`
+3. `(load "rules.txt")`
+4. Optional for interactive testing: `(load "driver.clp")`
+5. `(reset)`
+
+Helpful inspection commands:
+
+1. `(facts)`
+2. `(agenda)`
+3. `(watch rules)`
+4. `(watch facts)`
+
+## 2. D1 Regression Tests
+
+These tests verify that the original diagnosis behavior still exists in D2.
+
+### Test D1.1 - Single crisp PSU diagnosis
+
+Commands:
+
+1. `(assert (reported-symptom (symptom-id no-power-at-all) (observed yes) (user-cf 1.0)))`
+2. `(run)`
+
+Expected:
+
+1. `init-diagnostic-session` fires.
+2. `diagnose-crisp-from-symptom` creates a `diagnostic-conclusion` with:
+   - `scenario-id psu-failure`
+   - `theory crisp`
+   - `label strong`
+3. A verification suggestion is printed because the score is high.
+
+### Test D1.2 - Crisp strengthening now works
+
+Commands:
+
+1. `(assert (reported-symptom (symptom-id no-power-at-all) (observed yes) (user-cf 1.0)))`
+2. `(assert (reported-symptom (symptom-id post-beep-codes) (observed yes) (user-cf 1.0)))`
+3. `(run)`
+
+Expected:
+
+1. A crisp `psu-failure` conclusion is first created from the baseline rule.
+2. `strengthen-crisp-psu-diagnosis` replaces the weaker crisp conclusion with:
+   - `score 0.97`
+   - `label very-strong`
+   - `rule-id crisp-psu-combo`
+3. This verifies that the old D1 multi-symptom limitation was fixed.
+
+### Test D1.3 - Crisp storage strengthening
+
+Commands:
+
+1. `(assert (reported-symptom (symptom-id storage-not-detected) (observed yes) (user-cf 1.0)))`
+2. `(assert (reported-symptom (symptom-id boot-device-not-found) (observed yes) (user-cf 1.0)))`
+3. `(run)`
+
+Expected:
+
+1. A crisp `storage-connection-failure` conclusion exists.
+2. `strengthen-crisp-storage-diagnosis` upgrades it to `label very-strong`.
+
+### Test D1.4 - No evidence helper
+
+Commands:
+
+1. `(run)`
+
+Expected:
+
+1. `no-evidence-reported` fires once.
+2. The console prints examples for asserting both `reported-symptom` and `sensor-reading`.
+
+## 3. D2 TODO 2 - Certainty Factor Tests
+
+### Test CF.1 - Single probabilistic PSU rule
+
+Commands:
+
+1. `(assert (reported-symptom (symptom-id no-power-at-all) (observed yes) (user-cf 0.90)))`
+2. `(run)`
+
+Expected:
+
+1. Rule `cf-psu-failure-from-no-power` fires.
+2. A probabilistic conclusion exists with:
+   - `scenario-id psu-failure`
+   - `theory probabilistic`
+   - `rule-id cf-psu-no-power`
+   - `score 0.855` approximately (`0.90 * 0.95`)
+
+### Test CF.2 - CMOS battery probabilistic rule
+
+Commands:
+
+1. `(assert (reported-symptom (symptom-id time-date-reset) (observed yes) (user-cf 0.80)))`
+2. `(run)`
+
+Expected:
+
+1. Rule `cf-cmos-from-clock-reset` fires.
+2. A probabilistic `cmos-battery-dead` conclusion exists with score about `0.736`.
+
+### Test CF.3 - GPU driver probabilistic rule
+
+Commands:
+
+1. `(assert (reported-symptom (symptom-id driver-crash-recovery) (observed yes) (user-cf 0.75)))`
+2. `(run)`
+
+Expected:
+
+1. Rule `cf-gpu-driver-from-crashes` fires.
+2. A probabilistic `gpu-driver-failure` conclusion exists with score about `0.585`.
+
+### Test CF.4 - Combined PSU evidence
+
+Commands:
+
+1. `(assert (reported-symptom (symptom-id shutdown-under-load) (observed yes) (user-cf 0.80)))`
+2. `(assert (reported-symptom (symptom-id intermittent-power) (observed yes) (user-cf 0.70)))`
+3. `(run)`
+
+Expected:
+
+1. Rule `cf-psu-combination` fires.
+2. A probabilistic `psu-inadequate-wattage` conclusion exists with a combined score higher than either single piece of evidence alone.
+3. The rationale mentions positive certainty-factor accumulation.
+
+### Test CF.5 - Combined GPU evidence
+
+Commands:
+
+1. `(assert (reported-symptom (symptom-id no-display-output) (observed yes) (user-cf 0.80)))`
+2. `(assert (reported-symptom (symptom-id screen-artifacts) (observed yes) (user-cf 0.90)))`
+3. `(run)`
+
+Expected:
+
+1. Rule `cf-gpu-combination` fires.
+2. A probabilistic `gpu-overheating-or-memory` conclusion exists with a higher combined score than the `cf-gpu-artifacts` rule alone.
+
+### Test CF.6 - Combined storage evidence
+
+Commands:
+
+1. `(assert (reported-symptom (symptom-id storage-not-detected) (observed yes) (user-cf 0.85)))`
+2. `(assert (reported-symptom (symptom-id boot-device-not-found) (observed yes) (user-cf 0.80)))`
+3. `(run)`
+
+Expected:
+
+1. Rule `cf-storage-combination` fires.
+2. A probabilistic `storage-connection-failure` conclusion exists with a high combined score.
+
+## 4. D2 TODO 3 - Fuzzy Logic Tests
+
+### Test FZ.1 - CPU critical temperature alone
+
+Commands:
+
+1. `(assert (sensor-reading (name cpu-temperature) (value 102)))`
+2. `(run)`
+
+Expected:
+
+1. `fuzzify-reading` creates a `fuzzy-assessment` for `cpu-temperature critical`.
+2. Rule `fuzzy-cpu-critical` fires.
+3. A fuzzy `cpu-overheating` conclusion exists.
+
+### Test FZ.2 - Elevated CPU temperature plus freezing
+
+Commands:
+
+1. `(assert (sensor-reading (name cpu-temperature) (value 78)))`
+2. `(assert (reported-symptom (symptom-id system-freezes-under-load) (observed yes) (user-cf 0.90)))`
+3. `(run)`
+
+Expected:
+
+1. `fuzzy-cpu-elevated-and-freezing` fires.
+2. The fuzzy `cpu-overheating` score equals the minimum of the elevated-temperature degree and symptom confidence.
+
+### Test FZ.3 - Unstable voltage plus shutdown
+
+Commands:
+
+1. `(assert (sensor-reading (name voltage-stability) (value 35)))`
+2. `(assert (reported-symptom (symptom-id shutdown-under-load) (observed yes) (user-cf 0.85)))`
+3. `(run)`
+
+Expected:
+
+1. `fuzzy-voltage-unstable-shutdown` fires.
+2. A fuzzy `psu-inadequate-wattage` conclusion exists.
+
+### Test FZ.4 - Hot GPU plus artifacts
+
+Commands:
+
+1. `(assert (sensor-reading (name gpu-temperature) (value 86)))`
+2. `(assert (reported-symptom (symptom-id screen-artifacts) (observed yes) (user-cf 0.90)))`
+3. `(run)`
+
+Expected:
+
+1. `fuzzy-gpu-hot-and-artifacts` fires.
+2. A fuzzy `gpu-overheating-or-memory` conclusion exists.
+
+### Test FZ.5 - Poor storage health plus slow drive
+
+Commands:
+
+1. `(assert (sensor-reading (name storage-health) (value 28)))`
+2. `(assert (reported-symptom (symptom-id slow-storage-access) (observed yes) (user-cf 0.80)))`
+3. `(run)`
+
+Expected:
+
+1. `fuzzy-storage-poor-and-slow` fires.
+2. A fuzzy `storage-failing` conclusion exists.
+
+### Test FZ.6 - Severe boot time plus missing boot device
+
+Commands:
+
+1. `(assert (sensor-reading (name boot-time) (value 95)))`
+2. `(assert (reported-symptom (symptom-id boot-device-not-found) (observed yes) (user-cf 0.90)))`
+3. `(run)`
+
+Expected:
+
+1. `fuzzy-boot-severe` fires.
+2. A fuzzy `boot-storage-failure` conclusion exists.
+
+## 5. Cross-Theory Tests
+
+### Test XT.1 - Same scenario supported by multiple theories
+
+Commands:
+
+1. `(assert (reported-symptom (symptom-id system-freezes-under-load) (observed yes) (user-cf 0.90)))`
+2. `(assert (sensor-reading (name cpu-temperature) (value 100)))`
+3. `(run)`
+
+Expected:
+
+1. A crisp `cpu-overheating` conclusion exists.
+2. A probabilistic `cpu-overheating` conclusion exists.
+3. A fuzzy `cpu-overheating` conclusion exists.
+4. All three are traceable by `theory` and `rule-id`.
+
+### Test XT.2 - Multiple modules at once
+
+Commands:
+
+1. `(assert (reported-symptom (symptom-id no-power-at-all) (observed yes) (user-cf 0.95)))`
+2. `(assert (reported-symptom (symptom-id screen-artifacts) (observed yes) (user-cf 0.85)))`
+3. `(assert (reported-symptom (symptom-id blue-screen-crashes) (observed yes) (user-cf 0.80)))`
+4. `(assert (sensor-reading (name gpu-temperature) (value 92)))`
+5. `(run)`
+
+Expected:
+
+1. Diagnoses from power, display, and memory modules can coexist.
+2. No cross-module interference occurs.
+
+## 6. Driver Integration Test
+
+### Test UI.1 - Interactive D2 workflow
+
+Commands:
+
+1. `(load "driver.clp")`
+2. `(reset)`
+3. `(run-diagnosis)`
+
+Suggested input sequence:
+
+1. `1`
+2. `0.9`
+3. `8`
+4. `0.8`
+5. `0`
+6. `95`
+7. `88`
+8. `40`
+9. `70`
+10. `35`
+
+Expected:
+
+1. Two `reported-symptom` facts are asserted with user certainty factors.
+2. Five `sensor-reading` facts are asserted.
+3. Crisp, probabilistic, and fuzzy conclusions appear in the final summary.
+
+## 7. Negative and Edge Cases
+
+### Test NEG.1 - Invalid symptom identifier
+
+Commands:
+
+1. `(assert (reported-symptom (symptom-id nonexistent-symptom) (observed yes) (user-cf 1.0)))`
+2. `(run)`
+
+Expected:
+
+1. The session starts.
+2. No diagnosis is produced because no indicator or uncertain rule matches the unknown symptom.
+
+### Test NEG.2 - Observed = no
+
+Commands:
+
+1. `(assert (reported-symptom (symptom-id no-power-at-all) (observed no) (user-cf 1.0)))`
+2. `(run)`
+
+Expected:
+
+1. No symptom-based crisp, probabilistic, or fuzzy diagnosis fires because all symptom rules require `observed yes`.
+
+### Test NEG.3 - Skipped fuzzy readings
+
+Driver expectation:
+
+1. Enter `-1` for any quantitative reading in `run-diagnosis`.
+
+Expected:
+
+1. The driver does not assert a `sensor-reading` fact for that variable.
+2. The fuzzy rules that depend on the missing reading do not fire.
+
+## 8. Verification Summary
+
+Coverage provided by this file:
+
+1. D1 crisp regression behavior
+2. D1 multi-symptom strengthening fix
+3. D2 Certainty Factor single-evidence rules
+4. D2 Certainty Factor combination rules
+5. D2 fuzzy-variable fuzzification
+6. D2 fuzzy diagnosis rules
+7. Cross-theory coexistence
+8. Interactive driver support
+9. Negative and edge-case handling

@@ -1,0 +1,169 @@
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+
+;;; Run with:
+;;;   (batch "/Users/robertstacey/cloned/comp474project2026/tests/d2_probabilistic_tests.txt")
+;;;
+;;; Purpose:
+;;;   Focused Deliverable 2 probabilistic coverage using Certainty Factors.
+;;;   These tests concentrate on the CF layer rather than the full mixed system.
+
+(printout t crlf "========================================" crlf)
+(printout t "  D2 PROBABILISTIC TESTS" crlf)
+(printout t "========================================" crlf crlf)
+
+;;; ------------------------------------------------------------------
+;;; SINGLE-EVIDENCE CERTAINTY FACTOR TESTS
+;;; ------------------------------------------------------------------
+
+(printout t "CF1 - PSU failure from no power" crlf)
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id no-power-at-all) (observed yes) (user-cf 0.90)))
+(run)
+(facts)
+
+(printout t crlf "CF2 - PSU inadequate wattage from shutdown under load" crlf)
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id shutdown-under-load) (observed yes) (user-cf 0.80)))
+(run)
+(facts)
+
+(printout t crlf "CF3 - Motherboard POST failure from beep codes" crlf)
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id post-beep-codes) (observed yes) (user-cf 0.85)))
+(run)
+(facts)
+
+(printout t crlf "CF4 - CMOS battery dead from time/date reset" crlf)
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id time-date-reset) (observed yes) (user-cf 0.80)))
+(run)
+(facts)
+
+(printout t crlf "CF5 - CPU overheating from freezes under load" crlf)
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id system-freezes-under-load) (observed yes) (user-cf 0.90)))
+(run)
+(facts)
+
+(printout t crlf "CF6 - GPU overheating or memory defect from artifacts" crlf)
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id screen-artifacts) (observed yes) (user-cf 0.90)))
+(run)
+(facts)
+
+(printout t crlf "CF7 - GPU driver failure from driver crash and recovery" crlf)
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id driver-crash-recovery) (observed yes) (user-cf 0.75)))
+(run)
+(facts)
+
+(printout t crlf "CF8 - RAM module failure from blue screen crashes" crlf)
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id blue-screen-crashes) (observed yes) (user-cf 0.80)))
+(run)
+(facts)
+
+(printout t crlf "CF9 - Storage connection failure from missing drive" crlf)
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id storage-not-detected) (observed yes) (user-cf 0.85)))
+(run)
+(facts)
+
+(printout t crlf "CF10 - Storage drive failing from slow access" crlf)
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id slow-storage-access) (observed yes) (user-cf 0.80)))
+(run)
+(facts)
+
+;;; ------------------------------------------------------------------
+;;; COMBINATION CERTAINTY FACTOR TESTS
+;;; ------------------------------------------------------------------
+
+(printout t crlf "CF11 - Combined PSU evidence" crlf)
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id shutdown-under-load) (observed yes) (user-cf 0.80)))
+(assert (reported-symptom (symptom-id intermittent-power) (observed yes) (user-cf 0.70)))
+(run)
+(facts)
+
+(printout t crlf "CF12 - Combined GPU evidence" crlf)
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id no-display-output) (observed yes) (user-cf 0.80)))
+(assert (reported-symptom (symptom-id screen-artifacts) (observed yes) (user-cf 0.90)))
+(run)
+(facts)
+
+(printout t crlf "CF13 - Combined storage evidence" crlf)
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id storage-not-detected) (observed yes) (user-cf 0.85)))
+(assert (reported-symptom (symptom-id boot-device-not-found) (observed yes) (user-cf 0.80)))
+(run)
+(facts)
+
+;;; ------------------------------------------------------------------
+;;; EDGE CASES SPECIFIC TO THE CF LAYER
+;;; ------------------------------------------------------------------
+
+(printout t crlf "CF14 - Lower user certainty on shutdown under load" crlf)
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id shutdown-under-load) (observed yes) (user-cf 0.40)))
+(run)
+(facts)
+
+(printout t crlf "CF15 - Lower user certainty on no power" crlf)
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id no-power-at-all) (observed yes) (user-cf 0.50)))
+(run)
+(facts)
+
+(printout t crlf "========================================" crlf)
+(printout t "  D2 PROBABILISTIC TESTS COMPLETE" crlf)
+(printout t "========================================" crlf)

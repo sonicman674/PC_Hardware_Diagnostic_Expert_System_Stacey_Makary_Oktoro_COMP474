@@ -2,114 +2,271 @@
 
 ;;; Course: COMP 474/6741 - Intelligent Systems
 ;;; Domain: Personal Computer Hardware Diagnostics
-;;; This file contains deftemplates and base facts about the knowledge domain D.
+;;; This file contains the D1 baseline facts plus the D2 uncertain-knowledge
+;;; extensions for Certainty Factors and Fuzzy Logic.
 ;;; Load with: (load "facts.txt")
 
-;;; DEFTEMPLATES - Fact structure definitions for modularity and clarity
-
+;;; DEFTEMPLATES - Fact structure definitions for clarity and traceability
 
 (deftemplate symptom
-  "A symptom observed by the user during hardware diagnosis"
+  "A symptom that can be reported by the user."
   (slot id (type SYMBOL))
   (slot description (type STRING))
-  (slot category (type SYMBOL))); one of: power | display | memory | storage | general
+  (slot category (type SYMBOL)))
 
 (deftemplate component
-  "Hardware component with its typical failure characteristics"
+  "Hardware component with its typical failure characteristics."
   (slot name (type SYMBOL))
-  (slot type (type SYMBOL)) ; power | display | memory | storage | motherboard
+  (slot type (type SYMBOL))
   (slot failure-mode (type STRING)))
 
 (deftemplate failure-scenario
-  "A known failure scenario that the system can diagnose"
+  "A diagnosable hardware failure scenario."
   (slot id (type SYMBOL))
   (slot name (type STRING))
-  (slot module (type SYMBOL))); power-motherboard | display-graphics | memory-storage
-
-(deftemplate symptom-indicator
-  "Maps a symptom to potential failure scenarios (domain knowledge)"
-  (slot symptom-id (type SYMBOL))
-  (slot indicates-scenario (type SYMBOL))
-  (slot strength (type SYMBOL))); strong | moderate | weak
-
-(deftemplate diagnostic-conclusion
-  "Conclusion reached by the expert system"
-  (slot scenario-id (type SYMBOL))
-  (slot confidence (type SYMBOL))
+  (slot module (type SYMBOL))
   (slot recommended-action (type STRING)))
 
+(deftemplate symptom-indicator
+  "D1 crisp mapping from symptom to likely scenario."
+  (slot symptom-id (type SYMBOL))
+  (slot indicates-scenario (type SYMBOL))
+  (slot strength (type SYMBOL)))
+
+(deftemplate cf-evidence
+  "D2 probabilistic mapping from symptom evidence to scenario support."
+  (slot symptom-id (type SYMBOL))
+  (slot scenario-id (type SYMBOL))
+  (slot weight (type NUMBER))
+  (slot rationale (type STRING)))
+
+(deftemplate fuzzy-variable
+  "D2 fuzzy input variable collected during diagnosis."
+  (slot name (type SYMBOL))
+  (slot description (type STRING))
+  (slot units (type STRING)))
+
+(deftemplate fuzzy-set
+  "Trapezoidal fuzzy set a-b-c-d used for membership calculation."
+  (slot variable (type SYMBOL))
+  (slot label (type SYMBOL))
+  (slot a (type NUMBER))
+  (slot b (type NUMBER))
+  (slot c (type NUMBER))
+  (slot d (type NUMBER)))
+
+(deftemplate reported-symptom
+  "Runtime user symptom with optional certainty factor."
+  (slot symptom-id (type SYMBOL))
+  (slot observed (type SYMBOL))
+  (slot user-cf (type NUMBER) (default 1.0)))
+
+(deftemplate sensor-reading
+  "Runtime quantitative reading used by fuzzy rules."
+  (slot name (type SYMBOL))
+  (slot value (type NUMBER)))
+
+(deftemplate fuzzy-assessment
+  "Intermediate membership degree produced by fuzzification."
+  (slot variable (type SYMBOL))
+  (slot label (type SYMBOL))
+  (slot degree (type NUMBER)))
+
+(deftemplate diagnostic-conclusion
+  "Unified conclusion record for D1 crisp, D2 probabilistic, and D2 fuzzy rules."
+  (slot scenario-id (type SYMBOL))
+  (slot theory (type SYMBOL))
+  (slot score (type NUMBER))
+  (slot label (type SYMBOL))
+  (slot rule-id (type SYMBOL))
+  (slot recommended-action (type STRING))
+  (slot rationale (type STRING)))
+
 (deftemplate session-state
-  "Tracks current diagnostic session for debugging"
+  "Tracks diagnostic session lifecycle for debugging and testability."
   (slot phase (type SYMBOL))
   (slot message (type STRING)))
 
-(deftemplate reported-symptom
-  "Symptom observed and reported by user during diagnosis (asserted at runtime)"
-  (slot symptom-id (type SYMBOL))
-  (slot observed (type SYMBOL))); yes | no
-
 (deftemplate prompt-shown
-  "Prevents repeated firing of help/session rules"
+  "Prevents repeated helper prompts."
   (slot type (type SYMBOL)))
 
-;;; DEFFACTS - Domain knowledge restored on (reset) for proper inference cycle
-
+;;; DEFFACTS - Restored on (reset)
 
 (deffacts domain-knowledge
-  ;; MODULE 1: POWER & MOTHERBOARD - Base domain facts
-  ;; Fact 1: PSU complete failure symptom indicator
+  ;; D1 symptom catalogue
+  (symptom (id no-power-at-all) (description "No power at all") (category power))
+  (symptom (id shutdown-under-load) (description "Random shutdown under load") (category power))
+  (symptom (id post-beep-codes) (description "POST beep codes") (category power))
+  (symptom (id intermittent-power) (description "Intermittent power") (category power))
+  (symptom (id time-date-reset) (description "Time/date resets") (category power))
+  (symptom (id system-freezes-under-load) (description "System freezes under load") (category power))
+  (symptom (id no-display-output) (description "No display output") (category display))
+  (symptom (id screen-artifacts) (description "Screen artifacts") (category display))
+  (symptom (id monitor-not-detected) (description "Monitor not detected") (category display))
+  (symptom (id driver-crash-recovery) (description "Driver crash/recovery") (category display))
+  (symptom (id ram-not-in-bios) (description "RAM not detected in BIOS") (category memory))
+  (symptom (id blue-screen-crashes) (description "Blue screen crashes") (category memory))
+  (symptom (id storage-not-detected) (description "Storage device not detected") (category storage))
+  (symptom (id boot-device-not-found) (description "Boot device not found") (category storage))
+  (symptom (id slow-storage-access) (description "Slow storage access") (category storage))
+
+  ;; Component facts
+  (component (name PSU) (type power) (failure-mode "No output, inadequate wattage, voltage instability"))
+  (component (name motherboard) (type motherboard) (failure-mode "POST failures, power delivery faults, CMOS issues"))
+  (component (name GPU) (type display) (failure-mode "No output, overheating, memory defects, driver instability"))
+  (component (name RAM) (type memory) (failure-mode "Not detected, parity errors, instability under load"))
+  (component (name storage) (type storage) (failure-mode "Not detected, bad sectors, boot failure, degraded throughput"))
+
+  ;; Failure scenario registry
+  (failure-scenario
+    (id psu-failure)
+    (name "PSU Complete Failure")
+    (module power-motherboard)
+    (recommended-action "Replace PSU. Check power cable and wall outlet first. Test PSU with a PSU tester or known-good spare."))
+  (failure-scenario
+    (id psu-inadequate-wattage)
+    (name "PSU Inadequate Wattage")
+    (module power-motherboard)
+    (recommended-action "Estimate system load and upgrade to a PSU with 20-30 percent headroom."))
+  (failure-scenario
+    (id motherboard-post-failure)
+    (name "Motherboard POST Error")
+    (module power-motherboard)
+    (recommended-action "Decode the beep pattern with the motherboard manual. Reseat RAM and GPU, then verify CPU power."))
+  (failure-scenario
+    (id loose-power-connections)
+    (name "Loose Power Connections")
+    (module power-motherboard)
+    (recommended-action "Reseat the 24-pin ATX cable, CPU EPS cable, GPU power leads, and any modular PSU connections."))
+  (failure-scenario
+    (id cmos-battery-dead)
+    (name "Dead CMOS Battery")
+    (module power-motherboard)
+    (recommended-action "Replace the CR2032 battery and re-enter BIOS settings if needed."))
+  (failure-scenario
+    (id cpu-overheating)
+    (name "CPU or VRM Overheating")
+    (module power-motherboard)
+    (recommended-action "Reseat the cooler, reapply thermal paste, clean dust, and improve case airflow."))
+  (failure-scenario
+    (id gpu-or-cable-failure)
+    (name "GPU or Display Cable Failure")
+    (module display-graphics)
+    (recommended-action "Reseat the GPU, try a different display cable or port, and test with integrated graphics if available."))
+  (failure-scenario
+    (id gpu-overheating-or-memory)
+    (name "GPU Overheating or Memory Defect")
+    (module display-graphics)
+    (recommended-action "Clean the GPU cooler, monitor temperatures, and stress test. Persistent artifacts often require replacement."))
+  (failure-scenario
+    (id display-connection-issue)
+    (name "Display Connection Issue")
+    (module display-graphics)
+    (recommended-action "Verify the monitor input, reseat the cable, and try a known-good port or cable."))
+  (failure-scenario
+    (id gpu-driver-failure)
+    (name "GPU Driver Failure or Instability")
+    (module display-graphics)
+    (recommended-action "Clean reinstall the GPU driver, update firmware if applicable, and check for thermal throttling."))
+  (failure-scenario
+    (id ram-seating-or-compatibility)
+    (name "RAM Seating or Compatibility Issue")
+    (module memory-storage)
+    (recommended-action "Reseat the DIMMs, use the recommended slots, and verify RAM generation, speed, and XMP compatibility."))
+  (failure-scenario
+    (id ram-failure)
+    (name "RAM Module Failure")
+    (module memory-storage)
+    (recommended-action "Run MemTest86 and isolate modules one at a time to identify the failing DIMM."))
+  (failure-scenario
+    (id storage-connection-failure)
+    (name "Storage Connection or Cable Failure")
+    (module memory-storage)
+    (recommended-action "Reseat SATA or NVMe connections, try a different port, and confirm the drive appears in BIOS."))
+  (failure-scenario
+    (id boot-storage-failure)
+    (name "Boot Storage Not Found")
+    (module memory-storage)
+    (recommended-action "Check boot order, confirm the boot drive is detected, and repair the bootloader if the drive is healthy."))
+  (failure-scenario
+    (id storage-failing)
+    (name "Storage Drive Failing")
+    (module memory-storage)
+    (recommended-action "Read SMART data, back up the disk immediately, and prepare to replace the drive."))
+
+  ;; D1 crisp symptom indicators
   (symptom-indicator (symptom-id no-power-at-all) (indicates-scenario psu-failure) (strength strong))
-  ;; Fact 2: Random shutdown under load suggests inadequate PSU wattage
   (symptom-indicator (symptom-id shutdown-under-load) (indicates-scenario psu-inadequate-wattage) (strength strong))
-  ;; Fact 3: POST beep codes indicate motherboard/component detection issues
   (symptom-indicator (symptom-id post-beep-codes) (indicates-scenario motherboard-post-failure) (strength strong))
-  ;; Fact 4: Intermittent power can indicate loose connections
   (symptom-indicator (symptom-id intermittent-power) (indicates-scenario loose-power-connections) (strength moderate))
-  ;; Fact 5: System loses time/date points to dead CMOS battery
   (symptom-indicator (symptom-id time-date-reset) (indicates-scenario cmos-battery-dead) (strength strong))
-  ;; Fact 5b: System freezes under load suggests CPU or VRM overheating
   (symptom-indicator (symptom-id system-freezes-under-load) (indicates-scenario cpu-overheating) (strength strong))
-
-  ;; MODULE 2: DISPLAY & GRAPHICS - Base domain facts
-  ;; Fact 6: No display output suggests GPU or cable issue
   (symptom-indicator (symptom-id no-display-output) (indicates-scenario gpu-or-cable-failure) (strength moderate))
-  ;; Fact 7: Screen artifacts often indicate GPU memory or overheating
   (symptom-indicator (symptom-id screen-artifacts) (indicates-scenario gpu-overheating-or-memory) (strength strong))
-  ;; Fact 8: Monitor not detected can mean cable or GPU seating problem
   (symptom-indicator (symptom-id monitor-not-detected) (indicates-scenario display-connection-issue) (strength moderate))
-  ;; Fact 9: Driver crash/recovery suggests GPU driver or instability
   (symptom-indicator (symptom-id driver-crash-recovery) (indicates-scenario gpu-driver-failure) (strength strong))
-
-  ;; MODULE 3: MEMORY & STORAGE - Base domain facts
-  ;; Fact 10: RAM not detected in BIOS indicates seating or compatibility
   (symptom-indicator (symptom-id ram-not-in-bios) (indicates-scenario ram-seating-or-compatibility) (strength strong))
-  ;; Fact 11: Blue screen crashes often relate to RAM failure
   (symptom-indicator (symptom-id blue-screen-crashes) (indicates-scenario ram-failure) (strength strong))
-  ;; Fact 12: Storage not detected points to cable or connection
   (symptom-indicator (symptom-id storage-not-detected) (indicates-scenario storage-connection-failure) (strength strong))
-  ;; Fact 13: Boot device not found indicates storage or boot order
   (symptom-indicator (symptom-id boot-device-not-found) (indicates-scenario boot-storage-failure) (strength strong))
-  ;; Fact 14: Very slow storage access suggests failing drive
   (symptom-indicator (symptom-id slow-storage-access) (indicates-scenario storage-failing) (strength moderate))
 
-  ;; Fact 15-17: Component specifications
-  (component (name PSU) (type power) (failure-mode "No output; inadequate wattage; fan failure"))
-  (component (name RAM) (type memory) (failure-mode "Not detected; parity errors; instability under load"))
-  (component (name storage) (type storage) (failure-mode "Not detected; bad sectors; slow degradation"))
+  ;; D2 TODO 2 - Certainty Factors knowledge facts
+  (cf-evidence (symptom-id no-power-at-all) (scenario-id psu-failure) (weight 0.95)
+    (rationale "A system with absolutely no power is very strong evidence for complete PSU failure."))
+  (cf-evidence (symptom-id shutdown-under-load) (scenario-id psu-inadequate-wattage) (weight 0.80)
+    (rationale "Load-triggered shutdowns strongly support inadequate PSU headroom or unstable power delivery."))
+  (cf-evidence (symptom-id post-beep-codes) (scenario-id motherboard-post-failure) (weight 0.88)
+    (rationale "POST beep codes are strong evidence that core initialization failed before normal boot."))
+  (cf-evidence (symptom-id intermittent-power) (scenario-id loose-power-connections) (weight 0.65)
+    (rationale "Intermittent power is moderate evidence for a loose or oxidized connection in the power path."))
+  (cf-evidence (symptom-id time-date-reset) (scenario-id cmos-battery-dead) (weight 0.92)
+    (rationale "Repeated time and date loss is very strong evidence that the CMOS battery is depleted."))
+  (cf-evidence (symptom-id system-freezes-under-load) (scenario-id cpu-overheating) (weight 0.78)
+    (rationale "Freezing during sustained load strongly supports thermal or VRM stress."))
+  (cf-evidence (symptom-id no-display-output) (scenario-id gpu-or-cable-failure) (weight 0.60)
+    (rationale "No display output is useful but not definitive evidence because both GPU and cable faults can cause it."))
+  (cf-evidence (symptom-id screen-artifacts) (scenario-id gpu-overheating-or-memory) (weight 0.86)
+    (rationale "Artifacts strongly support GPU memory corruption or overheating."))
+  (cf-evidence (symptom-id monitor-not-detected) (scenario-id display-connection-issue) (weight 0.68)
+    (rationale "A missing display handshake is moderate evidence for a display path issue."))
+  (cf-evidence (symptom-id driver-crash-recovery) (scenario-id gpu-driver-failure) (weight 0.78)
+    (rationale "A recovering display driver strongly suggests driver instability or marginal GPU operation."))
+  (cf-evidence (symptom-id ram-not-in-bios) (scenario-id ram-seating-or-compatibility) (weight 0.82)
+    (rationale "Missing RAM in BIOS strongly supports seating, slot, or compatibility problems."))
+  (cf-evidence (symptom-id blue-screen-crashes) (scenario-id ram-failure) (weight 0.76)
+    (rationale "Frequent blue screens are significant evidence for memory instability or outright RAM failure."))
+  (cf-evidence (symptom-id storage-not-detected) (scenario-id storage-connection-failure) (weight 0.90)
+    (rationale "A missing drive is very strong evidence for a cable, port, or seating problem."))
+  (cf-evidence (symptom-id boot-device-not-found) (scenario-id boot-storage-failure) (weight 0.84)
+    (rationale "A missing boot device strongly supports boot-drive or bootloader unavailability."))
+  (cf-evidence (symptom-id slow-storage-access) (scenario-id storage-failing) (weight 0.70)
+    (rationale "Sustained throughput collapse is moderate-to-strong evidence for a degrading storage device."))
 
-  ;; FAILURE SCENARIO REGISTRY - The diagnosable scenarios
-  (failure-scenario (id psu-failure) (name "PSU Complete Failure") (module power-motherboard))
-  (failure-scenario (id psu-inadequate-wattage) (name "PSU Inadequate Wattage") (module power-motherboard))
-  (failure-scenario (id motherboard-post-failure) (name "Motherboard POST Error") (module power-motherboard))
-  (failure-scenario (id loose-power-connections) (name "Loose Power Connections") (module power-motherboard))
-  (failure-scenario (id cmos-battery-dead) (name "Dead CMOS Battery") (module power-motherboard))
-  (failure-scenario (id gpu-or-cable-failure) (name "GPU or Display Cable Failure") (module display-graphics))
-  (failure-scenario (id gpu-overheating-or-memory) (name "GPU Overheating or Memory Defect") (module display-graphics))
-  (failure-scenario (id display-connection-issue) (name "Display Connection Issue") (module display-graphics))
-  (failure-scenario (id gpu-driver-failure) (name "GPU Driver Failure or Instability") (module display-graphics))
-  (failure-scenario (id ram-seating-or-compatibility) (name "RAM Seating or Compatibility Issue") (module memory-storage))
-  (failure-scenario (id ram-failure) (name "RAM Module Failure") (module memory-storage))
-  (failure-scenario (id storage-connection-failure) (name "Storage Connection/Cable Failure") (module memory-storage))
-  (failure-scenario (id boot-storage-failure) (name "Boot Storage Not Found") (module memory-storage))
-  (failure-scenario (id storage-failing) (name "Storage Drive Failing") (module memory-storage))
-  (failure-scenario (id cpu-overheating) (name "CPU or VRM Overheating") (module power-motherboard)))
+  ;; D2 TODO 3 - Fuzzy Logic knowledge facts
+  (fuzzy-variable (name cpu-temperature) (description "Measured CPU package temperature") (units "degrees-celsius"))
+  (fuzzy-variable (name gpu-temperature) (description "Measured GPU hotspot or edge temperature") (units "degrees-celsius"))
+  (fuzzy-variable (name voltage-stability) (description "Power delivery stability score") (units "percent"))
+  (fuzzy-variable (name storage-health) (description "Drive health estimate from SMART-style tooling") (units "percent"))
+  (fuzzy-variable (name boot-time) (description "Cold boot duration until usable system") (units "seconds"))
+
+  (fuzzy-set (variable cpu-temperature) (label normal) (a 0) (b 20) (c 55) (d 65))
+  (fuzzy-set (variable cpu-temperature) (label elevated) (a 55) (b 65) (c 75) (d 85))
+  (fuzzy-set (variable cpu-temperature) (label critical) (a 80) (b 90) (c 120) (d 135))
+
+  (fuzzy-set (variable gpu-temperature) (label normal) (a 0) (b 25) (c 60) (d 72))
+  (fuzzy-set (variable gpu-temperature) (label hot) (a 68) (b 78) (c 88) (d 96))
+  (fuzzy-set (variable gpu-temperature) (label critical) (a 92) (b 100) (c 115) (d 125))
+
+  (fuzzy-set (variable voltage-stability) (label unstable) (a 0) (b 10) (c 40) (d 55))
+  (fuzzy-set (variable voltage-stability) (label borderline) (a 50) (b 60) (c 72) (d 84))
+  (fuzzy-set (variable voltage-stability) (label stable) (a 78) (b 88) (c 100) (d 110))
+
+  (fuzzy-set (variable storage-health) (label poor) (a 0) (b 10) (c 35) (d 50))
+  (fuzzy-set (variable storage-health) (label degraded) (a 45) (b 55) (c 70) (d 82))
+  (fuzzy-set (variable storage-health) (label good) (a 78) (b 88) (c 100) (d 110))
+
+  (fuzzy-set (variable boot-time) (label short) (a 0) (b 3) (c 12) (d 20))
+  (fuzzy-set (variable boot-time) (label slow) (a 18) (b 28) (c 45) (d 60))
+  (fuzzy-set (variable boot-time) (label severe) (a 55) (b 70) (c 120) (d 150)))

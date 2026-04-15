@@ -1,119 +1,217 @@
-Github username: sonicman674
+# PC Hardware Diagnostic Expert System
 
-
-## PC Hardware Diagnostic Expert System
-**Course:** COMP 474/6741: INTELLIGENT SYSTEMS  
-**Term:** WINTER 2026  
+**Course:** COMP 474/6741: Intelligent Systems  
+**Term:** Winter 2026  
 **Team Members:** Robert Stacey, Victor Okoro, David Makary
 
-### 1. Project Overview
-This project involves the development of an expert system designed to diagnose common PC hardware failures. The system focuses on the "Personal Computer Hardware" knowledge useful for diagnosing technical issues.
+## GitHub Submission Details
 
-**1.1 Knowledge Domain (D) - DELIVERABLE 1 TODO 1**
-- D is the subset of Personal Computer Hardware Diagnostics covering:
-- Power supply and motherboard behaviour (POST, power delivery, CMOS)
-- Display output and graphics card failure modes
-- Memory (RAM) detection, seating, and stability
-- Storage device detection, connection, and health
+- **GitHub username:** `sonicman674`
+- **Repository URL:** `https://github.com/sonicman674/comp474project2026`
+- **Canonical project title:** `PC Hardware Diagnostic Expert System`
 
-D satisfies the requirements: 
-- team members are interested in becoming experts in PC building/repair
-- authoritative sources exist (vendor manuals, PC building guides, industry standards)
-- experiential knowledge about how to diagnose and how not to replace parts prematurely is useful to many DIY builders.
+This repository is the canonical source archive for the project deliverables. The teaching assistants should use the repository URL above to access the code and supporting source documentation independently.
 
-**1.2 SMART Goal (G) - DELIVERABLE 1 TODO 2**
+### Access Notes for Evaluators
 
-- S - Specific: Diagnose common PC hardware failures using a CLIPS expert system
+- The deliverable source artifacts are stored at the repository root.
+- The key files for grading are `facts.txt`, `rules.txt`, `driver.clp`, `design.txt`, and `test-cases.txt`.
+- If the repository is private at grading time, course staff must be granted read access to this exact repository before evaluation.
+- The repository URL above should be included in the deliverable submission so the project can be processed independently.
 
-- M - Measurable: Cover at least 15 failure scenarios with 10+ facts and 20+ rules
+## Project Overview
 
-- A - Achievable: Scope limited to 3 well-defined modules across 3 team members
+This project implements a CLIPS-based expert system for diagnosing common PC hardware failures. The knowledge domain focuses on practical desktop troubleshooting for:
 
-- R - Relevant: Directly addresses real diagnostic needs of hobbyist PC builders
+- power delivery and motherboard behavior,
+- display and graphics issues,
+- memory problems, and
+- storage failures.
 
-- T - Time-bound: Completed by the Deliverable 1 deadline
+The system began as a Deliverable 1 knowledge base for certain knowledge and was extended in Deliverable 2 with:
 
-To develop a functional expert system using the CLIPS programming language by the Deliverable 1 deadline that accurately diagnoses at least 15 distinct hardware failure scenarios for hobbyist PC builders, achieved through a non-trivial knowledge base of 10+ facts and 20+ rules across 3 well-defined modules distributed among 3 team members.
+- probabilistically uncertain reasoning using **Certainty Factors**, and
+- possibilistically uncertain reasoning using **Fuzzy Logic**.
 
-**1.3 Potential User (U) - DELIVERABLE 1 TODO 3**
+## Knowledge Domain, Goal, and User
 
-The expert system is designed for a Home PC Builder and Hobbyist. This user typically has:
+### Knowledge Domain (D)
 
-- Knowledge Level: Intermediate. They understand basic components (RAM, CPU, GPU) but don't have experience with obscure failures.
-- Goal: To quickly identify faulty hardware in a new build or existing gaming rig without paying for professional repair services.
-- Needs: Clear, step-by-step guidance to isolate components and rule out simple connection errors before replacing expensive parts.
+The knowledge domain is a subset of personal computer hardware diagnostics covering:
 
-**1.4 Knowledge Base (K) - DELIVERABLE 1 TODO 4**
+- power supply and motherboard behavior such as POST, power delivery, and CMOS faults,
+- display output and GPU failure modes,
+- RAM detection, seating, and stability issues,
+- storage detection, boot, and degradation issues.
 
-K is the combination of F (facts.txt) and R (rules.txt), kept as separate files. F has 33 domain facts (15 symptom indicators, 15 failure scenarios, 3 component specs) and 8 deftemplates. R has 23 rules across 3 modules. 
+This domain was chosen because it has publicly available authoritative references and because practical diagnostic knowledge is useful to many PC builders and hobbyists.
 
-Rules and facts use plain hyphenated names (ex: no-power-at-all, psu-failure) and every rule has a docstring. 
+### Goal (G)
 
-All rules are written out in Structured English and predicate logic in design.txt. 
+The project goal is to develop a CLIPS expert system that helps users identify likely PC hardware failures and next-step actions using an explainable, modular, and testable knowledge base.
 
-Debugging is supported using CLIPS watch commands. 
+### Potential User (U)
 
-We reviewed each other's modules and ran 29 test cases (all passed), documented in test-cases.txt.
+The primary user is a home PC builder or hobbyist who:
 
+- understands basic hardware components,
+- wants help diagnosing faults without immediate professional repair,
+- benefits from step-by-step guidance before replacing expensive parts.
 
-### 2. Individual Contributions
+## Deliverable 2 Summary
 
-- Robert Stacey: Responsible for the Power & Motherboard Diagnostics module. This includes designing the logic for Power Supply Unit (PSU) failures and Motherboard POST error codes.
-- Victor: Responsible for the Display & Graphics module, focusing on GPU failures and monitor connectivity issues.
-- David: Responsible for the Memory & Storage module, focusing on RAM parity errors and storage device detection logic.
+Deliverable 2 extends the knowledge base with uncertain knowledge and addresses feedback from Deliverable 1.
 
-### 3. Technical Implementation
-- Logic Framework: The system utilizes Structured English for logic and semantics.
-- Languages: The implementation uses the CLIPS language.
-- Architecture: The Knowledge Base (K) is modular, and separate from the factbase (F) and the rulebase (R) in independent text files.
-- Cloud: Github is used to store files in repository
+### D2 TODO 1
 
-**3.1 File Structure**
+- `design.txt` contains the itemized D1 feedback summary.
+- `design.txt` also explains the concrete D2 changes made in response and how each change can be verified independently.
 
-- facts.txt - Factbase (F): Deftemplates and domain facts (symptom indicators, failure scenarios, component specs)
-- rules.txt - Rulebase (R): Defrules for diagnostic inference across all three modules
-- driver.clp - Driver script for interactive menu-driven diagnosis
-- design.txt - Design document: Structured English (syntax) and predicate logic (semantics) for K
-- test-cases.txt - Validation & verification: 29 documented test cases with expected results
+### D2 TODO 2
 
-**3.2 Usage (CLIPS IDE / CLI)**
+- Probabilistic uncertainty is implemented using **Certainty Factors**.
+- `facts.txt` includes `cf-evidence` facts with numeric weights and rationales.
+- `rules.txt` includes `cf-*` rules for single-evidence and combined-evidence inference.
 
-- (load "/path/to/facts.txt")
-- (load "/path/to/rules.txt")
-- (load "/path/to/driver.clp")
-- (reset)
-- (run-diagnosis)
+### D2 TODO 3
 
-A menu will appear. enter symptom numbers, then 0 to run the diagnosis.
+- Possibilistic uncertainty is implemented using **Fuzzy Logic**.
+- `facts.txt` includes `fuzzy-variable` and `fuzzy-set` definitions.
+- `rules.txt` includes fuzzification plus `fuzzy-*` inference rules.
 
-**3.3 Valid Symptom IDs**
-- Power/Motherboard: no-power-at-all, shutdown-under-load, post-beep-codes, intermittent-power, time-date-reset, system-freezes-under-load
+### D2 TODO 4
 
-- Display/Graphics: no-display-output, screen-artifacts, monitor-not-detected, driver-crash-recovery
+- `design.txt` documents four selected quality attributes:
+  - explainability,
+  - maintainability,
+  - consistency,
+  - traceability.
+- It also explains where the corresponding quality guidelines were applied and what impact they had on the knowledge base.
 
-- Memory/Storage: ram-not-in-bios, blue-screen-crashes, storage-not-detected, boot-device-not-found, slow-storage-access
+## Current Knowledge Base Structure
 
-**3.4 Debugging**
-Enable watches before running:
+The knowledge base `K` is the combination of:
 
-- (watch facts)
-- (watch rules)
-- (watch activations)
+- `facts.txt` for the factbase `F`
+- `rules.txt` for the rulebase `R`
 
-**3.5 Knowledge Base Summary**
-- Factbase (F): 33 domain facts across 3 modules (15 symptom indicators, 3 component specs, 15 failure scenarios); 8 deftemplates
-- Rulebase (R): 23 rules (1 session-init, 15 single-symptom diagnostic, 3 multi-symptom diagnostic, 4 session/summary/utility)
+The implementation is modular and keeps facts separate from rules.
 
+### Factbase Highlights
 
+`facts.txt` currently includes:
 
-### 4. References
+- 13 `deftemplate` definitions,
+- D1 crisp knowledge such as symptoms, failure scenarios, and symptom indicators,
+- D2 probabilistic knowledge through `cf-evidence`,
+- D2 fuzzy knowledge through `fuzzy-variable` and `fuzzy-set`,
+- runtime-facing structures such as `reported-symptom`, `sensor-reading`, `fuzzy-assessment`, and `diagnostic-conclusion`.
 
-1. CLIPS Reference Manual, Version 6.4. Interfaces Guide. Available at: https://www.clipsrules.net/documentation/v642/ig642.pdf
-2. CLIPS 6.4 User’s Guide. CLIPS Rule Based Programming Language. Available at: https://www.clipsrules.net/documentation/v642/ug642.pdf
-3. CLIPS Reference Manual, Version 6.4. Basic Programming Guide. Available at: https://www.clipsrules.net/documentation/v642/bpg642.pdf
-4. Corsair. How to Test a PSU (Power Supply Unit) Available at: https://www.corsair.com/ca/en/explorer/diy-builder/power-supply-units/how-to-test-a-psu-power-supply-unit/?srsltid=AfmBOorw2poPsa2xrylx9dER60jnG0xP9v9yaM8HBx_MZT8U19JaHUei
-5. Memtest86. MEMTEST86 TECHNICAL INFORMATION. Available at: https://www.memtest86.com/technical.htm
-6. CrystalDiskInfo. Crystal Dew World - S.M.A.R.T. HDD/SSD Monitoring Utility. Available at: https://crystalmark.info/en/software/crystaldiskinfo/
-7. HP. Troubleshooting Guide Business Desktops Available at: https://h10032.www1.hp.com/ctg/Manual/c00189283.pdf
-8. Dell. Understanding Beep Codes on a Dell Desktops. Available at: https://www.dell.com/support/kbdoc/en-ca/000124349/understanding-beep-codes-on-a-dell-desktop-pc
-9. Display Driver Uninstaller (DDU). Wagnardsoft - DDU. Available at: https://www.wagnardsoft.com/display-driver-uninstaller-DDU-
+### Rulebase Highlights
+
+`rules.txt` currently includes 34 rules total:
+
+- baseline D1 session and crisp diagnosis rules,
+- crisp strengthening rules that fix the old multi-symptom limitation,
+- 13 Certainty Factor rules (`cf-*`),
+- 12 fuzzy rules in the fuzzy section, including fuzzification and 11 `fuzzy-*` rules,
+- summary and helper rules for traceable output and verification prompts.
+
+### Supporting Deliverable Files
+
+- `driver.clp`: interactive diagnosis driver for D2 symptom certainty factors and optional quantitative readings
+- `design.txt`: evaluator-facing D2 design document and improvement report
+- `test-cases.txt`: reproducible validation and verification procedure
+- `finalfeed.txt`: feedback transcript used as a source for the D1 improvement summary
+
+## Usage
+
+### CLIPS Load Sequence
+
+```clips
+(load "/path/to/facts.txt")
+(load "/path/to/rules.txt")
+(load "/path/to/driver.clp")
+(reset)
+(run-diagnosis)
+```
+
+### Interactive Flow
+
+When `run-diagnosis` is called, the driver will:
+
+1. ask the user to choose observed symptoms,
+2. ask for a certainty factor for each selected symptom from `0.0` to `1.0`,
+3. ask for optional quantitative readings for fuzzy reasoning,
+4. allow `-1` to skip any quantitative reading,
+5. run the expert system and print traceable conclusions.
+
+### Quantitative Readings Used by Fuzzy Logic
+
+The fuzzy input workflow supports:
+
+- `cpu-temperature`
+- `gpu-temperature`
+- `voltage-stability`
+- `storage-health`
+- `boot-time`
+
+### Symptom IDs
+
+- **Power and motherboard:** `no-power-at-all`, `shutdown-under-load`, `post-beep-codes`, `intermittent-power`, `time-date-reset`, `system-freezes-under-load`
+- **Display and graphics:** `no-display-output`, `screen-artifacts`, `monitor-not-detected`, `driver-crash-recovery`
+- **Memory and storage:** `ram-not-in-bios`, `blue-screen-crashes`, `storage-not-detected`, `boot-device-not-found`, `slow-storage-access`
+
+## Validation and Verification
+
+Validation and verification are documented in `test-cases.txt` as a reproducible procedure instead of only a narrative list of outcomes.
+
+The current verification document includes:
+
+- D1 regression tests,
+- Certainty Factor tests,
+- Fuzzy Logic tests,
+- cross-theory tests,
+- driver integration tests,
+- negative and edge-case tests.
+
+There are currently 22 documented test scenarios in `test-cases.txt`.
+
+## Individual Contributions
+
+- **Robert Stacey:** power and motherboard diagnostics
+- **Victor Okoro:** display and graphics diagnostics
+- **David Makary:** memory and storage diagnostics
+
+## Debugging Support
+
+Useful CLIPS debugging commands:
+
+```clips
+(watch facts)
+(watch rules)
+(watch activations)
+(facts)
+(agenda)
+```
+
+## References
+
+1. CLIPS Reference Manual, Version 6.4, Interfaces Guide  
+   https://www.clipsrules.net/documentation/v642/ig642.pdf
+2. CLIPS 6.4 User's Guide  
+   https://www.clipsrules.net/documentation/v642/ug642.pdf
+3. CLIPS Reference Manual, Version 6.4, Basic Programming Guide  
+   https://www.clipsrules.net/documentation/v642/bpg642.pdf
+4. Corsair, *How to Test a PSU (Power Supply Unit)*  
+   https://www.corsair.com/ca/en/explorer/diy-builder/power-supply-units/how-to-test-a-psu-power-supply-unit/?srsltid=AfmBOorw2poPsa2xrylx9dER60jnG0xP9v9yaM8HBx_MZT8U19JaHUei
+5. MemTest86, *Technical Information*  
+   https://www.memtest86.com/technical.htm
+6. CrystalDiskInfo, *S.M.A.R.T. HDD/SSD Monitoring Utility*  
+   https://crystalmark.info/en/software/crystaldiskinfo/
+7. HP, *Troubleshooting Guide for Business Desktops*  
+   https://h10032.www1.hp.com/ctg/Manual/c00189283.pdf
+8. Dell, *Understanding Beep Codes on Dell Desktop PCs*  
+   https://www.dell.com/support/kbdoc/en-ca/000124349/understanding-beep-codes-on-a-dell-desktop-pc
+9. Display Driver Uninstaller (DDU)  
+   https://www.wagnardsoft.com/display-driver-uninstaller-DDU-

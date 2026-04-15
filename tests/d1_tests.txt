@@ -1,0 +1,515 @@
+﻿(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/driver.clp")
+(reset)
+
+
+(run-diagnosis)
+
+
+
+
+(watch facts)
+(watch rules)
+(watch activations)
+
+
+
+
+;;; TEST MODULE 1 - POWER & MOTHERBOARD
+
+
+
+
+(printout t "  Test 1.1 - PSU Complete Failure" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: no-power-at-all" crlf)
+(assert (reported-symptom (symptom-id no-power-at-all) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 1.2 - PSU Inadequate Wattage" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: shutdown-under-load" crlf)
+(assert (reported-symptom (symptom-id shutdown-under-load) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 1.3 - Motherboard POST Error" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: post-beep-codes" crlf)
+(assert (reported-symptom (symptom-id post-beep-codes) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 1.4 - Loose Power Connections" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: intermittent-power" crlf)
+(assert (reported-symptom (symptom-id intermittent-power) (observed yes)))
+(run)
+(printout t "--- End Test 1.4 ---" crlf)
+
+
+
+
+(printout t "  Test 1.5 - Dead CMOS Battery" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: time-date-reset" crlf)
+(assert (reported-symptom (symptom-id time-date-reset) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 1.6 - CPU Overheating" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: system-freezes-under-load" crlf)
+(assert (reported-symptom (symptom-id system-freezes-under-load) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 1.7 - Multi-Symptom PSU (no-power-at-all + post-beep-codes)" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: no-power-at-all and post-beep-codes" crlf)
+(assert (reported-symptom (symptom-id no-power-at-all) (observed yes)))
+(assert (reported-symptom (symptom-id post-beep-codes) (observed yes)))
+(run)
+
+
+
+
+;;; MODULE 2 - DISPLAY & GRAPHICS
+
+
+
+
+(printout t "  Test 2.1 - GPU or Cable Failure" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: no-display-output" crlf)
+(assert (reported-symptom (symptom-id no-display-output) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 2.2 - GPU Overheating or Memory Defect" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: screen-artifacts" crlf)
+(assert (reported-symptom (symptom-id screen-artifacts) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 2.3 - Display Connection Issue" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: monitor-not-detected" crlf)
+(assert (reported-symptom (symptom-id monitor-not-detected) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 2.4 - GPU Driver Failure" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: driver-crash-recovery" crlf)
+(assert (reported-symptom (symptom-id driver-crash-recovery) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 2.5 - Multi-Symptom GPU (no-display-output + screen-artifacts)" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: no-display-output and screen-artifacts" crlf)
+(assert (reported-symptom (symptom-id no-display-output) (observed yes)))
+(assert (reported-symptom (symptom-id screen-artifacts) (observed yes)))
+(run)
+
+
+
+
+;;; MODULE 3 - MEMORY & STORAGE
+
+
+
+
+(printout t "  Test 3.1 - RAM Seating or Compatibility" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: ram-not-in-bios" crlf)
+(assert (reported-symptom (symptom-id ram-not-in-bios) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 3.2 - RAM Module Failure" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: blue-screen-crashes" crlf)
+(assert (reported-symptom (symptom-id blue-screen-crashes) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 3.3 - Storage Connection Failure" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: storage-not-detected" crlf)
+(assert (reported-symptom (symptom-id storage-not-detected) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 3.4 - Boot Storage Not Found" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: boot-device-not-found" crlf)
+(assert (reported-symptom (symptom-id boot-device-not-found) (observed yes)))
+(run)
+
+
+
+
+(printout t "  Test 3.5 - Storage Failing" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: slow-storage-access" crlf)
+(assert (reported-symptom (symptom-id slow-storage-access) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 3.6 - Multi-Symptom Storage (boot-device-not-found + storage-not-detected)" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: boot-device-not-found and storage-not-detected" crlf)
+(assert (reported-symptom (symptom-id boot-device-not-found) (observed yes)))
+(assert (reported-symptom (symptom-id storage-not-detected) (observed yes)))
+(run)
+
+
+
+
+;;; SESSION & UTILITY RULES
+
+
+
+
+(printout t "  Test 4.1 - Session Initialization (single symptom)" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id no-display-output) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 4.2 - No Symptoms Prompt (reset then run with no symptoms)" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(run)
+
+
+
+
+
+
+(printout t "  Test 4.3 - Session Completion (any symptom that produces conclusion)" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id ram-not-in-bios) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 4.4 - Suggest Next Steps (strong confidence)" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id no-power-at-all) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 4.5 - No Next Steps Suggestion (moderate confidence)" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id intermittent-power) (observed yes)))
+(run)
+
+
+
+
+;;; CROSS-MODULE TESTS
+
+
+
+
+(printout t "  Test 5.1 - Symptoms from Multiple Modules" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id no-power-at-all) (observed yes)))
+(assert (reported-symptom (symptom-id screen-artifacts) (observed yes)))
+(assert (reported-symptom (symptom-id ram-not-in-bios) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 5.2 - All 15 Symptoms" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(assert (reported-symptom (symptom-id no-power-at-all) (observed yes)))
+(assert (reported-symptom (symptom-id shutdown-under-load) (observed yes)))
+(assert (reported-symptom (symptom-id post-beep-codes) (observed yes)))
+(assert (reported-symptom (symptom-id intermittent-power) (observed yes)))
+(assert (reported-symptom (symptom-id time-date-reset) (observed yes)))
+(assert (reported-symptom (symptom-id system-freezes-under-load) (observed yes)))
+(assert (reported-symptom (symptom-id no-display-output) (observed yes)))
+(assert (reported-symptom (symptom-id screen-artifacts) (observed yes)))
+(assert (reported-symptom (symptom-id monitor-not-detected) (observed yes)))
+(assert (reported-symptom (symptom-id driver-crash-recovery) (observed yes)))
+(assert (reported-symptom (symptom-id ram-not-in-bios) (observed yes)))
+(assert (reported-symptom (symptom-id blue-screen-crashes) (observed yes)))
+(assert (reported-symptom (symptom-id storage-not-detected) (observed yes)))
+(assert (reported-symptom (symptom-id boot-device-not-found) (observed yes)))
+(assert (reported-symptom (symptom-id slow-storage-access) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 5.3 - Driver Menu Integration (simulated selection 1 3 11)" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/driver.clp")
+(reset)
+(assert (reported-symptom (symptom-id no-power-at-all) (observed yes)))
+(assert (reported-symptom (symptom-id post-beep-codes) (observed yes)))
+(assert (reported-symptom (symptom-id ram-not-in-bios) (observed yes)))
+(run)
+
+
+
+
+;;; NEGATIVE & EDGE CASES
+
+
+
+
+(printout t "  Test 6.1 - Invalid Symptom ID" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: nonexistent-symptom" crlf)
+(assert (reported-symptom (symptom-id nonexistent-symptom) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 6.2 - Symptom Observed = No" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting: no-power-at-all (observed no)" crlf)
+(assert (reported-symptom (symptom-id no-power-at-all) (observed no)))
+(run)
+
+
+
+
+
+
+(printout t "  Test 6.3 - Duplicate Symptom Assertion" crlf)
+
+
+(clear)
+(load "/Users/robertstacey/cloned/comp474project2026/facts.txt")
+(load "/Users/robertstacey/cloned/comp474project2026/rules.txt")
+(reset)
+(printout t "Asserting duplicate symptom: no-power-at-all twice" crlf)
+(assert (reported-symptom (symptom-id no-power-at-all) (observed yes)))
+(assert (reported-symptom (symptom-id no-power-at-all) (observed yes)))
+(run)
+
+
+
+
+
+
+(printout t "  Auto-tests complete" crlf)

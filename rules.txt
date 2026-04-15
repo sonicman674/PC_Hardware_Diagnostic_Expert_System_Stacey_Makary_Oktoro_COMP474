@@ -2,255 +2,665 @@
 
 ;;; Course: COMP 474/6741 - Intelligent Systems
 ;;; Domain: Personal Computer Hardware Diagnostics
-;;; This file contains defrules for diagnostic inference.
+;;; This file contains the D1 baseline rules and the D2 uncertainty extensions.
 ;;; Load order: facts.txt first, then rules.txt
-;;; Usage: Assert (reported-symptom (symptom-id <id>) (observed yes)) then (run)
-
+;;; Usage: assert reported-symptom and sensor-reading facts, then run.
 
 ;;; DEBUGGING SUPPORT - Enable with (watch rules), (watch facts), (watch activations)
 
+(deffunction clamp-score (?value)
+  (if (< ?value 0.0) then
+      0.0
+   else
+      (if (> ?value 1.0) then
+          1.0
+       else
+          ?value)))
+
+(deffunction strength-to-score (?strength)
+  (if (eq ?strength strong) then
+      0.90
+   else
+      (if (eq ?strength moderate) then
+          0.65
+       else
+          0.45)))
+
+(deffunction score-label (?score)
+  (if (>= ?score 0.90) then
+      very-strong
+   else
+      (if (>= ?score 0.75) then
+          strong
+       else
+          (if (>= ?score 0.55) then
+              moderate
+           else
+              weak))))
+
+(deffunction combine-cf (?a ?b)
+  (bind ?aa (clamp-score ?a))
+  (bind ?bb (clamp-score ?b))
+  (clamp-score (+ ?aa (* ?bb (- 1.0 ?aa)))))
+
+(deffunction fuzzy-and (?a ?b)
+  (if (< ?a ?b) then ?a else ?b))
+
+(deffunction trapezoid-membership (?x ?a ?b ?c ?d)
+  (if (or (<= ?x ?a) (>= ?x ?d)) then
+      0.0
+   else
+      (if (and (>= ?x ?b) (<= ?x ?c)) then
+          1.0
+       else
+          (if (< ?x ?b) then
+              (/ (- ?x ?a) (- ?b ?a))
+           else
+              (/ (- ?d ?x) (- ?d ?c))))))
+
+;;; SESSION AND BASELINE D1 RULES
 
 (defrule init-diagnostic-session
-  "Initialize session state for debugging when first symptom is reported"
-  (reported-symptom (symptom-id ?s) (observed yes))
-  (not (session-state (phase ?p)))
+  "Starts a session once symptoms or sensor readings exist."
+  (or
+    (reported-symptom (observed yes))
+    (sensor-reading))
+  (not (session-state (phase ?phase)))
   =>
   (assert (session-state (phase started) (message "Diagnostic session initialized")))
   (printout t crlf "*** DIAGNOSTIC SESSION STARTED ***" crlf))
 
-
-;;; MODULE 1: POWER & MOTHERBOARD - Diagnostic rules (Robert's domain)
-
-
-(defrule diagnose-psu-failure
-  "Rule 1: No power at all strongly indicates PSU complete failure"
-  (reported-symptom (symptom-id no-power-at-all) (observed yes))
-  (symptom-indicator (symptom-id no-power-at-all) (indicates-scenario psu-failure) (strength ?str))
-  (failure-scenario (id psu-failure) (name ?n) (module power-motherboard))
+(defrule diagnose-crisp-from-symptom
+  "D1 baseline rule: map a reported symptom to one crisp conclusion."
+  (reported-symptom (symptom-id ?sid) (observed yes))
+  (symptom-indicator (symptom-id ?sid) (indicates-scenario ?scenario) (strength ?strength))
+  (failure-scenario (id ?scenario) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (scenario-id ?scenario) (theory crisp)))
   =>
-  (assert (diagnostic-conclusion (scenario-id psu-failure) (confidence ?str)
-    (recommended-action "Replace PSU. Check power cable and wall outlet first. Test PSU with paperclip method.")))
-  (printout t "DIAGNOSIS: " ?n " (confidence: " ?str ")" crlf))
+  (bind ?score (strength-to-score ?strength))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id ?scenario)
+      (theory crisp)
+      (score ?score)
+      (label ?strength)
+      (rule-id ?sid)
+      (recommended-action ?action)
+      (rationale "Crisp D1 symptom-indicator matched a directly reported symptom.")))
+  (printout t "D1 CRISP: " ?name " (score: " ?score ", label: " ?strength ")" crlf))
 
-(defrule diagnose-psu-inadequate-wattage
-  "Rule 2: Shutdown under load indicates insufficient PSU wattage"
-  (reported-symptom (symptom-id shutdown-under-load) (observed yes))
-  (symptom-indicator (symptom-id shutdown-under-load) (indicates-scenario psu-inadequate-wattage) (strength ?str))
-  (failure-scenario (id psu-inadequate-wattage) (name ?n) (module power-motherboard))
-  =>
-  (assert (diagnostic-conclusion (scenario-id psu-inadequate-wattage) (confidence ?str)
-    (recommended-action "Calculate system wattage; upgrade to PSU with 20-30% headroom.")))
-  (printout t "DIAGNOSIS: " ?n " (confidence: " ?str ")" crlf))
-
-(defrule diagnose-motherboard-post-failure
-  "Rule 3: POST beep codes indicate motherboard or component detection failure"
-  (reported-symptom (symptom-id post-beep-codes) (observed yes))
-  (symptom-indicator (symptom-id post-beep-codes) (indicates-scenario motherboard-post-failure) (strength ?str))
-  (failure-scenario (id motherboard-post-failure) (name ?n) (module power-motherboard))
-  =>
-  (assert (diagnostic-conclusion (scenario-id motherboard-post-failure) (confidence ?str)
-    (recommended-action "Decode beep pattern per motherboard manual. Reseat RAM, GPU, check CPU power.")))
-  (printout t "DIAGNOSIS: " ?n " (confidence: " ?str ")" crlf))
-
-(defrule diagnose-loose-power-connections
-  "Rule 4: Intermittent power suggests loose power connections"
-  (reported-symptom (symptom-id intermittent-power) (observed yes))
-  (symptom-indicator (symptom-id intermittent-power) (indicates-scenario loose-power-connections) (strength ?str))
-  (failure-scenario (id loose-power-connections) (name ?n) (module power-motherboard))
-  =>
-  (assert (diagnostic-conclusion (scenario-id loose-power-connections) (confidence ?str)
-    (recommended-action "Reseat 24-pin ATX, CPU 8-pin, and all power connectors firmly.")))
-  (printout t "DIAGNOSIS: " ?n " (confidence: " ?str ")" crlf))
-
-(defrule diagnose-cpu-overheating
-  "Rule 5b: System freezes under load indicate CPU or VRM overheating"
-  (reported-symptom (symptom-id system-freezes-under-load) (observed yes))
-  (symptom-indicator (symptom-id system-freezes-under-load) (indicates-scenario cpu-overheating) (strength ?str))
-  (failure-scenario (id cpu-overheating) (name ?n) (module power-motherboard))
-  =>
-  (assert (diagnostic-conclusion (scenario-id cpu-overheating) (confidence ?str)
-    (recommended-action "Reseat CPU cooler; reapply thermal paste. Check VRM temps. Improve case airflow.")))
-  (printout t "DIAGNOSIS: " ?n " (confidence: " ?str ")" crlf))
-
-(defrule diagnose-cmos-battery-dead
-  "Rule 6: Time/date reset indicates dead CMOS battery"
-  (reported-symptom (symptom-id time-date-reset) (observed yes))
-  (symptom-indicator (symptom-id time-date-reset) (indicates-scenario cmos-battery-dead) (strength ?str))
-  (failure-scenario (id cmos-battery-dead) (name ?n) (module power-motherboard))
-  =>
-  (assert (diagnostic-conclusion (scenario-id cmos-battery-dead) (confidence ?str)
-    (recommended-action "Replace CR2032 CMOS battery on motherboard.")))
-  (printout t "DIAGNOSIS: " ?n " (confidence: " ?str ")" crlf))
-
-(defrule power-module-multi-symptom-psu
-  "Rule 7: No power combined with POST beeps strengthens PSU failure diagnosis"
-  (declare (salience -1))
+(defrule strengthen-crisp-psu-diagnosis
+  "Fixes the D1 multi-symptom limitation by replacing the weaker crisp conclusion."
   (reported-symptom (symptom-id no-power-at-all) (observed yes))
   (reported-symptom (symptom-id post-beep-codes) (observed yes))
-  (not (diagnostic-conclusion (scenario-id psu-failure)))
+  ?old <- (diagnostic-conclusion (scenario-id psu-failure) (theory crisp) (score ?score))
+  (failure-scenario (id psu-failure) (name ?name) (recommended-action ?action))
+  (test (< ?score 0.97))
   =>
-  (assert (diagnostic-conclusion (scenario-id psu-failure) (confidence strong)
-    (recommended-action "PSU likely failed. If no beeps, also check motherboard. Reseat power cables.")))
-  (printout t "DIAGNOSIS: PSU Complete Failure (confidence: strong, multi-symptom)" crlf))
+  (retract ?old)
+  (assert
+    (diagnostic-conclusion
+      (scenario-id psu-failure)
+      (theory crisp)
+      (score 0.97)
+      (label very-strong)
+      (rule-id crisp-psu-combo)
+      (recommended-action ?action)
+      (rationale "No power plus POST beeps is stronger combined evidence than the single-symptom D1 rule.")))
+  (printout t "D1 CRISP BOOST: " ?name " strengthened by multi-symptom evidence." crlf))
 
-
-;;; MODULE 2: DISPLAY & GRAPHICS - Diagnostic rules (Victor's domain)
-
-
-(defrule diagnose-gpu-or-cable-failure
-  "Rule 8: No display output suggests GPU or display cable issue"
-  (reported-symptom (symptom-id no-display-output) (observed yes))
-  (symptom-indicator (symptom-id no-display-output) (indicates-scenario gpu-or-cable-failure) (strength ?str))
-  (failure-scenario (id gpu-or-cable-failure) (name ?n) (module display-graphics))
-  =>
-  (assert (diagnostic-conclusion (scenario-id gpu-or-cable-failure) (confidence ?str)
-    (recommended-action "Reseat GPU. Try different cable/port. Test with integrated graphics if available.")))
-  (printout t "DIAGNOSIS: " ?n " (confidence: " ?str ")" crlf))
-
-(defrule diagnose-gpu-overheating-or-memory
-  "Rule 9: Screen artifacts indicate GPU overheating or memory defect"
-  (reported-symptom (symptom-id screen-artifacts) (observed yes))
-  (symptom-indicator (symptom-id screen-artifacts) (indicates-scenario gpu-overheating-or-memory) (strength ?str))
-  (failure-scenario (id gpu-overheating-or-memory) (name ?n) (module display-graphics))
-  =>
-  (assert (diagnostic-conclusion (scenario-id gpu-overheating-or-memory) (confidence ?str)
-    (recommended-action "Clean GPU fans/heatsink; repaste if old. Run stress test. If persists, GPU may be defective.")))
-  (printout t "DIAGNOSIS: " ?n " (confidence: " ?str ")" crlf))
-
-(defrule diagnose-display-connection-issue
-  "Rule 10: Monitor not detected indicates display connection problem"
-  (reported-symptom (symptom-id monitor-not-detected) (observed yes))
-  (symptom-indicator (symptom-id monitor-not-detected) (indicates-scenario display-connection-issue) (strength ?str))
-  (failure-scenario (id display-connection-issue) (name ?n) (module display-graphics))
-  =>
-  (assert (diagnostic-conclusion (scenario-id display-connection-issue) (confidence ?str)
-    (recommended-action "Reseat HDMI/DP cable. Try different cable/port. Ensure monitor is powered and on correct input.")))
-  (printout t "DIAGNOSIS: " ?n " (confidence: " ?str ")" crlf))
-
-(defrule diagnose-gpu-driver-failure
-  "Rule 11: Driver crash/recovery suggests GPU driver or instability"
-  (reported-symptom (symptom-id driver-crash-recovery) (observed yes))
-  (symptom-indicator (symptom-id driver-crash-recovery) (indicates-scenario gpu-driver-failure) (strength ?str))
-  (failure-scenario (id gpu-driver-failure) (name ?n) (module display-graphics))
-  =>
-  (assert (diagnostic-conclusion (scenario-id gpu-driver-failure) (confidence ?str)
-    (recommended-action "Use DDU to clean reinstall GPU drivers. Update to latest stable. Check GPU temps.")))
-  (printout t "DIAGNOSIS: " ?n " (confidence: " ?str ")" crlf))
-
-(defrule display-multi-symptom-gpu
-  "Rule 12: No display plus artifacts suggests GPU hardware issue"
-  (declare (salience -1))
+(defrule strengthen-crisp-gpu-diagnosis
+  "Strengthens the D1 GPU diagnosis when display failure and artifacts co-occur."
   (reported-symptom (symptom-id no-display-output) (observed yes))
   (reported-symptom (symptom-id screen-artifacts) (observed yes))
-  (not (diagnostic-conclusion (scenario-id gpu-overheating-or-memory)))
+  ?old <- (diagnostic-conclusion (scenario-id gpu-overheating-or-memory) (theory crisp) (score ?score))
+  (failure-scenario (id gpu-overheating-or-memory) (name ?name) (recommended-action ?action))
+  (test (< ?score 0.95))
   =>
-  (assert (diagnostic-conclusion (scenario-id gpu-overheating-or-memory) (confidence strong)
-    (recommended-action "GPU likely failing. Test in another system if possible. Try different display output.")))
-  (printout t "DIAGNOSIS: GPU Overheating or Memory Defect (confidence: strong, multi-symptom)" crlf))
+  (retract ?old)
+  (assert
+    (diagnostic-conclusion
+      (scenario-id gpu-overheating-or-memory)
+      (theory crisp)
+      (score 0.95)
+      (label very-strong)
+      (rule-id crisp-gpu-combo)
+      (recommended-action ?action)
+      (rationale "Artifacts plus complete display loss strongly indicate a GPU hardware fault.")))
+  (printout t "D1 CRISP BOOST: " ?name " strengthened by multi-symptom evidence." crlf))
 
-
-;;; MODULE 3: MEMORY & STORAGE - Diagnostic rules (David's domain)
-
-
-(defrule diagnose-ram-seating-or-compatibility
-  "Rule 13: RAM not in BIOS indicates seating or compatibility issue"
-  (reported-symptom (symptom-id ram-not-in-bios) (observed yes))
-  (symptom-indicator (symptom-id ram-not-in-bios) (indicates-scenario ram-seating-or-compatibility) (strength ?str))
-  (failure-scenario (id ram-seating-or-compatibility) (name ?n) (module memory-storage))
-  =>
-  (assert (diagnostic-conclusion (scenario-id ram-seating-or-compatibility) (confidence ?str)
-    (recommended-action "Reseat RAM firmly until clicks. Use correct slots per manual. Verify RAM type/speed compatibility.")))
-  (printout t "DIAGNOSIS: " ?n " (confidence: " ?str ")" crlf))
-
-(defrule diagnose-ram-failure
-  "Rule 14: Blue screen crashes often indicate RAM failure"
-  (reported-symptom (symptom-id blue-screen-crashes) (observed yes))
-  (symptom-indicator (symptom-id blue-screen-crashes) (indicates-scenario ram-failure) (strength ?str))
-  (failure-scenario (id ram-failure) (name ?n) (module memory-storage))
-  =>
-  (assert (diagnostic-conclusion (scenario-id ram-failure) (confidence ?str)
-    (recommended-action "Run Memtest86 for full pass. Try one stick at a time to isolate bad module.")))
-  (printout t "DIAGNOSIS: " ?n " (confidence: " ?str ")" crlf))
-
-(defrule diagnose-storage-connection-failure
-  "Rule 15: Storage not detected indicates cable or connection failure"
+(defrule strengthen-crisp-storage-diagnosis
+  "Strengthens the D1 storage connection diagnosis with two corroborating symptoms."
   (reported-symptom (symptom-id storage-not-detected) (observed yes))
-  (symptom-indicator (symptom-id storage-not-detected) (indicates-scenario storage-connection-failure) (strength ?str))
-  (failure-scenario (id storage-connection-failure) (name ?n) (module memory-storage))
-  =>
-  (assert (diagnostic-conclusion (scenario-id storage-connection-failure) (confidence ?str)
-    (recommended-action "Reseat SATA/data and power cables. Try different port. For NVMe, reseat drive.")))
-  (printout t "DIAGNOSIS: " ?n " (confidence: " ?str ")" crlf))
-
-(defrule diagnose-boot-storage-failure
-  "Rule 16: Boot device not found indicates boot storage issue"
   (reported-symptom (symptom-id boot-device-not-found) (observed yes))
-  (symptom-indicator (symptom-id boot-device-not-found) (indicates-scenario boot-storage-failure) (strength ?str))
-  (failure-scenario (id boot-storage-failure) (name ?n) (module memory-storage))
+  ?old <- (diagnostic-conclusion (scenario-id storage-connection-failure) (theory crisp) (score ?score))
+  (failure-scenario (id storage-connection-failure) (name ?name) (recommended-action ?action))
+  (test (< ?score 0.96))
   =>
-  (assert (diagnostic-conclusion (scenario-id boot-storage-failure) (confidence ?str)
-    (recommended-action "Check BIOS boot order. Reseat boot drive. Verify drive is detected in BIOS.")))
-  (printout t "DIAGNOSIS: " ?n " (confidence: " ?str ")" crlf))
+  (retract ?old)
+  (assert
+    (diagnostic-conclusion
+      (scenario-id storage-connection-failure)
+      (theory crisp)
+      (score 0.96)
+      (label very-strong)
+      (rule-id crisp-storage-combo)
+      (recommended-action ?action)
+      (rationale "Missing storage plus missing boot device is stronger than either symptom alone.")))
+  (printout t "D1 CRISP BOOST: " ?name " strengthened by multi-symptom evidence." crlf))
 
-(defrule diagnose-storage-failing
-  "Rule 17: Slow storage access suggests failing drive"
-  (reported-symptom (symptom-id slow-storage-access) (observed yes))
-  (symptom-indicator (symptom-id slow-storage-access) (indicates-scenario storage-failing) (strength ?str))
-  (failure-scenario (id storage-failing) (name ?n) (module memory-storage))
+;;; D2 TODO 2 - CERTAINTY FACTOR RULES
+
+(defrule cf-psu-failure-from-no-power
+  (reported-symptom (symptom-id no-power-at-all) (observed yes) (user-cf ?user))
+  (cf-evidence (symptom-id no-power-at-all) (scenario-id psu-failure) (weight ?weight) (rationale ?why))
+  (failure-scenario (id psu-failure) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id cf-psu-no-power)))
   =>
-  (assert (diagnostic-conclusion (scenario-id storage-failing) (confidence ?str)
-    (recommended-action "Run SMART diagnostics (CrystalDiskInfo). Backup data immediately. Prepare for replacement.")))
-  (printout t "DIAGNOSIS: " ?n " (confidence: " ?str ")" crlf))
+  (bind ?score (clamp-score (* ?user ?weight)))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id psu-failure)
+      (theory probabilistic)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id cf-psu-no-power)
+      (recommended-action ?action)
+      (rationale ?why)))
+  (printout t "CF: " ?name " (score: " ?score ")" crlf))
 
-(defrule storage-multi-symptom-boot
-  "Rule 18: Boot device not found plus storage not detected strengthens cable/connection diagnosis"
-  (declare (salience -1))
-  (reported-symptom (symptom-id boot-device-not-found) (observed yes))
-  (reported-symptom (symptom-id storage-not-detected) (observed yes))
-  (not (diagnostic-conclusion (scenario-id storage-connection-failure)))
+(defrule cf-psu-wattage-from-shutdown
+  (reported-symptom (symptom-id shutdown-under-load) (observed yes) (user-cf ?user))
+  (cf-evidence (symptom-id shutdown-under-load) (scenario-id psu-inadequate-wattage) (weight ?weight) (rationale ?why))
+  (failure-scenario (id psu-inadequate-wattage) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id cf-psu-load)))
   =>
-  (assert (diagnostic-conclusion (scenario-id storage-connection-failure) (confidence strong)
-    (recommended-action "Strong indication of loose cable or faulty port. Reseat SATA/NVMe and power. Check BIOS.")))
-  (printout t "DIAGNOSIS: Storage Connection/Cable Failure (confidence: strong, multi-symptom)" crlf))
+  (bind ?score (clamp-score (* ?user ?weight)))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id psu-inadequate-wattage)
+      (theory probabilistic)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id cf-psu-load)
+      (recommended-action ?action)
+      (rationale ?why)))
+  (printout t "CF: " ?name " (score: " ?score ")" crlf))
 
+(defrule cf-motherboard-from-post
+  (reported-symptom (symptom-id post-beep-codes) (observed yes) (user-cf ?user))
+  (cf-evidence (symptom-id post-beep-codes) (scenario-id motherboard-post-failure) (weight ?weight) (rationale ?why))
+  (failure-scenario (id motherboard-post-failure) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id cf-post)))
+  =>
+  (bind ?score (clamp-score (* ?user ?weight)))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id motherboard-post-failure)
+      (theory probabilistic)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id cf-post)
+      (recommended-action ?action)
+      (rationale ?why)))
+  (printout t "CF: " ?name " (score: " ?score ")" crlf))
 
-;;; SUMMARY AND DEBUGGING RULES
+(defrule cf-cmos-from-clock-reset
+  (reported-symptom (symptom-id time-date-reset) (observed yes) (user-cf ?user))
+  (cf-evidence (symptom-id time-date-reset) (scenario-id cmos-battery-dead) (weight ?weight) (rationale ?why))
+  (failure-scenario (id cmos-battery-dead) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id cf-cmos)))
+  =>
+  (bind ?score (clamp-score (* ?user ?weight)))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id cmos-battery-dead)
+      (theory probabilistic)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id cf-cmos)
+      (recommended-action ?action)
+      (rationale ?why)))
+  (printout t "CF: " ?name " (score: " ?score ")" crlf))
 
+(defrule cf-cpu-overheating-from-freezes
+  (reported-symptom (symptom-id system-freezes-under-load) (observed yes) (user-cf ?user))
+  (cf-evidence (symptom-id system-freezes-under-load) (scenario-id cpu-overheating) (weight ?weight) (rationale ?why))
+  (failure-scenario (id cpu-overheating) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id cf-cpu-freeze)))
+  =>
+  (bind ?score (clamp-score (* ?user ?weight)))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id cpu-overheating)
+      (theory probabilistic)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id cf-cpu-freeze)
+      (recommended-action ?action)
+      (rationale ?why)))
+  (printout t "CF: " ?name " (score: " ?score ")" crlf))
+
+(defrule cf-gpu-from-artifacts
+  (reported-symptom (symptom-id screen-artifacts) (observed yes) (user-cf ?user))
+  (cf-evidence (symptom-id screen-artifacts) (scenario-id gpu-overheating-or-memory) (weight ?weight) (rationale ?why))
+  (failure-scenario (id gpu-overheating-or-memory) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id cf-gpu-artifacts)))
+  =>
+  (bind ?score (clamp-score (* ?user ?weight)))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id gpu-overheating-or-memory)
+      (theory probabilistic)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id cf-gpu-artifacts)
+      (recommended-action ?action)
+      (rationale ?why)))
+  (printout t "CF: " ?name " (score: " ?score ")" crlf))
+
+(defrule cf-gpu-driver-from-crashes
+  (reported-symptom (symptom-id driver-crash-recovery) (observed yes) (user-cf ?user))
+  (cf-evidence (symptom-id driver-crash-recovery) (scenario-id gpu-driver-failure) (weight ?weight) (rationale ?why))
+  (failure-scenario (id gpu-driver-failure) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id cf-gpu-driver)))
+  =>
+  (bind ?score (clamp-score (* ?user ?weight)))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id gpu-driver-failure)
+      (theory probabilistic)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id cf-gpu-driver)
+      (recommended-action ?action)
+      (rationale ?why)))
+  (printout t "CF: " ?name " (score: " ?score ")" crlf))
+
+(defrule cf-ram-from-blue-screen
+  (reported-symptom (symptom-id blue-screen-crashes) (observed yes) (user-cf ?user))
+  (cf-evidence (symptom-id blue-screen-crashes) (scenario-id ram-failure) (weight ?weight) (rationale ?why))
+  (failure-scenario (id ram-failure) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id cf-ram-bsod)))
+  =>
+  (bind ?score (clamp-score (* ?user ?weight)))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id ram-failure)
+      (theory probabilistic)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id cf-ram-bsod)
+      (recommended-action ?action)
+      (rationale ?why)))
+  (printout t "CF: " ?name " (score: " ?score ")" crlf))
+
+(defrule cf-storage-connection-from-missing-drive
+  (reported-symptom (symptom-id storage-not-detected) (observed yes) (user-cf ?user))
+  (cf-evidence (symptom-id storage-not-detected) (scenario-id storage-connection-failure) (weight ?weight) (rationale ?why))
+  (failure-scenario (id storage-connection-failure) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id cf-storage-missing)))
+  =>
+  (bind ?score (clamp-score (* ?user ?weight)))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id storage-connection-failure)
+      (theory probabilistic)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id cf-storage-missing)
+      (recommended-action ?action)
+      (rationale ?why)))
+  (printout t "CF: " ?name " (score: " ?score ")" crlf))
+
+(defrule cf-storage-failing-from-slow-drive
+  (reported-symptom (symptom-id slow-storage-access) (observed yes) (user-cf ?user))
+  (cf-evidence (symptom-id slow-storage-access) (scenario-id storage-failing) (weight ?weight) (rationale ?why))
+  (failure-scenario (id storage-failing) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id cf-storage-slow)))
+  =>
+  (bind ?score (clamp-score (* ?user ?weight)))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id storage-failing)
+      (theory probabilistic)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id cf-storage-slow)
+      (recommended-action ?action)
+      (rationale ?why)))
+  (printout t "CF: " ?name " (score: " ?score ")" crlf))
+
+(defrule cf-psu-combination
+  "Combines two partially independent power symptoms."
+  (reported-symptom (symptom-id shutdown-under-load) (observed yes) (user-cf ?cf1))
+  (reported-symptom (symptom-id intermittent-power) (observed yes) (user-cf ?cf2))
+  (cf-evidence (symptom-id shutdown-under-load) (scenario-id psu-inadequate-wattage) (weight ?w1))
+  (cf-evidence (symptom-id intermittent-power) (scenario-id loose-power-connections) (weight ?w2))
+  (failure-scenario (id psu-inadequate-wattage) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id cf-psu-combined)))
+  =>
+  (bind ?score (combine-cf (* ?cf1 ?w1) (* ?cf2 ?w2)))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id psu-inadequate-wattage)
+      (theory probabilistic)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id cf-psu-combined)
+      (recommended-action ?action)
+      (rationale "Shutdown under load and intermittent power were combined with positive certainty-factor accumulation.")))
+  (printout t "CF: " ?name " combined score = " ?score crlf))
+
+(defrule cf-gpu-combination
+  "Combines visible artifacts with complete display loss."
+  (reported-symptom (symptom-id no-display-output) (observed yes) (user-cf ?cf1))
+  (reported-symptom (symptom-id screen-artifacts) (observed yes) (user-cf ?cf2))
+  (cf-evidence (symptom-id no-display-output) (scenario-id gpu-or-cable-failure) (weight ?w1))
+  (cf-evidence (symptom-id screen-artifacts) (scenario-id gpu-overheating-or-memory) (weight ?w2))
+  (failure-scenario (id gpu-overheating-or-memory) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id cf-gpu-combined)))
+  =>
+  (bind ?score (combine-cf (* ?cf1 ?w1) (* ?cf2 ?w2)))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id gpu-overheating-or-memory)
+      (theory probabilistic)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id cf-gpu-combined)
+      (recommended-action ?action)
+      (rationale "Display loss and artifacts were combined because together they support a GPU hardware fault more strongly.")))
+  (printout t "CF: " ?name " combined score = " ?score crlf))
+
+(defrule cf-storage-combination
+  "Combines missing storage and missing boot device."
+  (reported-symptom (symptom-id storage-not-detected) (observed yes) (user-cf ?cf1))
+  (reported-symptom (symptom-id boot-device-not-found) (observed yes) (user-cf ?cf2))
+  (cf-evidence (symptom-id storage-not-detected) (scenario-id storage-connection-failure) (weight ?w1))
+  (cf-evidence (symptom-id boot-device-not-found) (scenario-id boot-storage-failure) (weight ?w2))
+  (failure-scenario (id storage-connection-failure) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id cf-storage-combined)))
+  =>
+  (bind ?score (combine-cf (* ?cf1 ?w1) (* ?cf2 ?w2)))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id storage-connection-failure)
+      (theory probabilistic)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id cf-storage-combined)
+      (recommended-action ?action)
+      (rationale "A missing drive plus a missing boot target were combined because they corroborate a connection or port issue.")))
+  (printout t "CF: " ?name " combined score = " ?score crlf))
+
+;;; D2 TODO 3 - FUZZY LOGIC RULES
+
+(defrule fuzzify-reading
+  "Generic fuzzification rule for all fuzzy variables."
+  (sensor-reading (name ?variable) (value ?value))
+  (fuzzy-set (variable ?variable) (label ?label) (a ?a) (b ?b) (c ?c) (d ?d))
+  (not (fuzzy-assessment (variable ?variable) (label ?label)))
+  (test (> (trapezoid-membership ?value ?a ?b ?c ?d) 0.0))
+  =>
+  (bind ?degree (trapezoid-membership ?value ?a ?b ?c ?d))
+  (assert (fuzzy-assessment (variable ?variable) (label ?label) (degree ?degree)))
+  (printout t "FUZZY INPUT: " ?variable " is " ?label " with degree " ?degree crlf))
+
+(defrule fuzzy-cpu-critical
+  (fuzzy-assessment (variable cpu-temperature) (label critical) (degree ?degree))
+  (failure-scenario (id cpu-overheating) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id fuzzy-cpu-critical)))
+  (test (>= ?degree 0.35))
+  =>
+  (assert
+    (diagnostic-conclusion
+      (scenario-id cpu-overheating)
+      (theory fuzzy)
+      (score ?degree)
+      (label (score-label ?degree))
+      (rule-id fuzzy-cpu-critical)
+      (recommended-action ?action)
+      (rationale "Critical CPU temperature membership directly supports overheating.")))
+  (printout t "FUZZY: " ?name " (degree: " ?degree ")" crlf))
+
+(defrule fuzzy-cpu-elevated-and-freezing
+  (fuzzy-assessment (variable cpu-temperature) (label elevated) (degree ?tempDegree))
+  (reported-symptom (symptom-id system-freezes-under-load) (observed yes) (user-cf ?symptomDegree))
+  (failure-scenario (id cpu-overheating) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id fuzzy-cpu-freeze)))
+  (test (>= (fuzzy-and ?tempDegree ?symptomDegree) 0.35))
+  =>
+  (bind ?score (fuzzy-and ?tempDegree ?symptomDegree))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id cpu-overheating)
+      (theory fuzzy)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id fuzzy-cpu-freeze)
+      (recommended-action ?action)
+      (rationale "Elevated CPU temperature combined with load-induced freezing increases the plausibility of thermal instability.")))
+  (printout t "FUZZY: " ?name " (degree: " ?score ")" crlf))
+
+(defrule fuzzy-voltage-unstable-shutdown
+  (fuzzy-assessment (variable voltage-stability) (label unstable) (degree ?voltageDegree))
+  (reported-symptom (symptom-id shutdown-under-load) (observed yes) (user-cf ?symptomDegree))
+  (failure-scenario (id psu-inadequate-wattage) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id fuzzy-psu-unstable-shutdown)))
+  (test (>= (fuzzy-and ?voltageDegree ?symptomDegree) 0.35))
+  =>
+  (bind ?score (fuzzy-and ?voltageDegree ?symptomDegree))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id psu-inadequate-wattage)
+      (theory fuzzy)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id fuzzy-psu-unstable-shutdown)
+      (recommended-action ?action)
+      (rationale "Unstable voltage and shutdown under load jointly support inadequate or unstable PSU output.")))
+  (printout t "FUZZY: " ?name " (degree: " ?score ")" crlf))
+
+(defrule fuzzy-voltage-unstable-intermittent
+  (fuzzy-assessment (variable voltage-stability) (label unstable) (degree ?voltageDegree))
+  (reported-symptom (symptom-id intermittent-power) (observed yes) (user-cf ?symptomDegree))
+  (failure-scenario (id loose-power-connections) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id fuzzy-loose-power)))
+  (test (>= (fuzzy-and ?voltageDegree ?symptomDegree) 0.35))
+  =>
+  (bind ?score (fuzzy-and ?voltageDegree ?symptomDegree))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id loose-power-connections)
+      (theory fuzzy)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id fuzzy-loose-power)
+      (recommended-action ?action)
+      (rationale "Intermittent power with unstable voltage is compatible with a loose or marginal power path.")))
+  (printout t "FUZZY: " ?name " (degree: " ?score ")" crlf))
+
+(defrule fuzzy-voltage-borderline-no-power
+  (fuzzy-assessment (variable voltage-stability) (label borderline) (degree ?voltageDegree))
+  (reported-symptom (symptom-id no-power-at-all) (observed yes) (user-cf ?symptomDegree))
+  (failure-scenario (id psu-failure) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id fuzzy-psu-borderline)))
+  (test (>= (fuzzy-and ?voltageDegree ?symptomDegree) 0.35))
+  =>
+  (bind ?score (fuzzy-and ?voltageDegree ?symptomDegree))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id psu-failure)
+      (theory fuzzy)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id fuzzy-psu-borderline)
+      (recommended-action ?action)
+      (rationale "A borderline voltage-quality reading together with total power loss suggests a failing PSU output stage.")))
+  (printout t "FUZZY: " ?name " (degree: " ?score ")" crlf))
+
+(defrule fuzzy-gpu-hot-and-artifacts
+  (fuzzy-assessment (variable gpu-temperature) (label hot) (degree ?tempDegree))
+  (reported-symptom (symptom-id screen-artifacts) (observed yes) (user-cf ?symptomDegree))
+  (failure-scenario (id gpu-overheating-or-memory) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id fuzzy-gpu-hot)))
+  (test (>= (fuzzy-and ?tempDegree ?symptomDegree) 0.35))
+  =>
+  (bind ?score (fuzzy-and ?tempDegree ?symptomDegree))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id gpu-overheating-or-memory)
+      (theory fuzzy)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id fuzzy-gpu-hot)
+      (recommended-action ?action)
+      (rationale "A hot GPU combined with artifacts matches the typical pattern of GPU thermal or memory instability.")))
+  (printout t "FUZZY: " ?name " (degree: " ?score ")" crlf))
+
+(defrule fuzzy-gpu-critical-no-display
+  (fuzzy-assessment (variable gpu-temperature) (label critical) (degree ?tempDegree))
+  (reported-symptom (symptom-id no-display-output) (observed yes) (user-cf ?symptomDegree))
+  (failure-scenario (id gpu-overheating-or-memory) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id fuzzy-gpu-critical)))
+  (test (>= (fuzzy-and ?tempDegree ?symptomDegree) 0.35))
+  =>
+  (bind ?score (fuzzy-and ?tempDegree ?symptomDegree))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id gpu-overheating-or-memory)
+      (theory fuzzy)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id fuzzy-gpu-critical)
+      (recommended-action ?action)
+      (rationale "Critical GPU temperature with no display output is strong fuzzy evidence for GPU failure or thermal shutdown.")))
+  (printout t "FUZZY: " ?name " (degree: " ?score ")" crlf))
+
+(defrule fuzzy-storage-poor-and-slow
+  (fuzzy-assessment (variable storage-health) (label poor) (degree ?healthDegree))
+  (reported-symptom (symptom-id slow-storage-access) (observed yes) (user-cf ?symptomDegree))
+  (failure-scenario (id storage-failing) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id fuzzy-storage-poor)))
+  (test (>= (fuzzy-and ?healthDegree ?symptomDegree) 0.35))
+  =>
+  (bind ?score (fuzzy-and ?healthDegree ?symptomDegree))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id storage-failing)
+      (theory fuzzy)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id fuzzy-storage-poor)
+      (recommended-action ?action)
+      (rationale "Poor storage-health membership plus slow access indicates a degrading drive.")))
+  (printout t "FUZZY: " ?name " (degree: " ?score ")" crlf))
+
+(defrule fuzzy-storage-degraded-boot
+  (fuzzy-assessment (variable storage-health) (label degraded) (degree ?healthDegree))
+  (reported-symptom (symptom-id boot-device-not-found) (observed yes) (user-cf ?symptomDegree))
+  (failure-scenario (id boot-storage-failure) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id fuzzy-boot-degraded)))
+  (test (>= (fuzzy-and ?healthDegree ?symptomDegree) 0.35))
+  =>
+  (bind ?score (fuzzy-and ?healthDegree ?symptomDegree))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id boot-storage-failure)
+      (theory fuzzy)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id fuzzy-boot-degraded)
+      (recommended-action ?action)
+      (rationale "A degraded drive combined with a missing boot device suggests a boot-critical storage problem.")))
+  (printout t "FUZZY: " ?name " (degree: " ?score ")" crlf))
+
+(defrule fuzzy-boot-severe
+  (fuzzy-assessment (variable boot-time) (label severe) (degree ?bootDegree))
+  (reported-symptom (symptom-id boot-device-not-found) (observed yes) (user-cf ?symptomDegree))
+  (failure-scenario (id boot-storage-failure) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id fuzzy-boot-severe)))
+  (test (>= (fuzzy-and ?bootDegree ?symptomDegree) 0.35))
+  =>
+  (bind ?score (fuzzy-and ?bootDegree ?symptomDegree))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id boot-storage-failure)
+      (theory fuzzy)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id fuzzy-boot-severe)
+      (recommended-action ?action)
+      (rationale "A severely delayed boot process with a missing boot device supports a boot-storage failure.")))
+  (printout t "FUZZY: " ?name " (degree: " ?score ")" crlf))
+
+(defrule fuzzy-boot-slow-and-storage-poor
+  (fuzzy-assessment (variable boot-time) (label slow) (degree ?bootDegree))
+  (fuzzy-assessment (variable storage-health) (label poor) (degree ?healthDegree))
+  (failure-scenario (id storage-failing) (name ?name) (recommended-action ?action))
+  (not (diagnostic-conclusion (rule-id fuzzy-boot-storage)))
+  (test (>= (fuzzy-and ?bootDegree ?healthDegree) 0.35))
+  =>
+  (bind ?score (fuzzy-and ?bootDegree ?healthDegree))
+  (assert
+    (diagnostic-conclusion
+      (scenario-id storage-failing)
+      (theory fuzzy)
+      (score ?score)
+      (label (score-label ?score))
+      (rule-id fuzzy-boot-storage)
+      (recommended-action ?action)
+      (rationale "Slow boot combined with poor storage-health membership suggests a failing drive rather than only a software issue.")))
+  (printout t "FUZZY: " ?name " (degree: " ?score ")" crlf))
+
+;;; SUMMARY, VERIFICATION, AND HELPER RULES
 
 (defrule print-diagnostic-summary
-  "Rule 19: Print summary of all conclusions when run completes"
+  "Prints a traceable summary for each conclusion."
   (declare (salience -10))
-  (diagnostic-conclusion (scenario-id ?id) (confidence ?conf) (recommended-action ?act))
+  (diagnostic-conclusion
+    (scenario-id ?scenario)
+    (theory ?theory)
+    (score ?score)
+    (label ?label)
+    (rule-id ?rule)
+    (recommended-action ?action)
+    (rationale ?rationale))
   =>
-  (printout t "  -> " ?id ": " ?act crlf))
+  (printout t "  -> [" ?theory "/" ?rule "] " ?scenario
+            " score=" ?score " label=" ?label crlf)
+  (printout t "     Action: " ?action crlf)
+  (printout t "     Why: " ?rationale crlf))
+
+(defrule suggest-next-steps
+  "Suggest a verification step whenever the inferred score is high."
+  (declare (salience -15))
+  (diagnostic-conclusion (score ?score))
+  (test (>= ?score 0.75))
+  =>
+  (printout t "  [Verification] Consider a known-good swap test or independent measurement for this high-scoring diagnosis." crlf))
 
 (defrule session-complete
-  "Rule 20: Mark session complete for debugging"
+  "Mark the session complete once at least one diagnosis has been produced."
   (declare (salience -20))
   (diagnostic-conclusion)
-  ?s <- (session-state (phase started) (message ?msg))
+  ?session <- (session-state (phase started) (message ?msg))
   =>
-  (retract ?s)
+  (retract ?session)
   (assert (session-state (phase complete) (message "Diagnosis complete")))
   (printout t crlf "*** DIAGNOSTIC SESSION COMPLETE ***" crlf))
 
-(defrule no-symptoms-reported
-  "Rule 21: Prompt user when no symptoms have been asserted (fires once)"
-  (not (reported-symptom))
-  (not (prompt-shown (type no-symptoms)))
+(defrule no-evidence-reported
+  "Prompt the user only when neither symptoms nor fuzzy sensor readings exist."
+  (not (reported-symptom (observed yes)))
+  (not (sensor-reading))
+  (not (prompt-shown (type no-evidence)))
   =>
-  (assert (prompt-shown (type no-symptoms)))
-  (printout t "No symptoms reported. Assert symptoms with: " crlf)
-  (printout t "  (assert (reported-symptom (symptom-id <symptom-id>) (observed yes)))" crlf)
-  (printout t "Valid symptom-ids: no-power-at-all, shutdown-under-load, post-beep-codes," crlf)
-  (printout t "  intermittent-power, time-date-reset, system-freezes-under-load," crlf)
-  (printout t "  no-display-output, screen-artifacts, monitor-not-detected, driver-crash-recovery," crlf)
-  (printout t "  ram-not-in-bios, blue-screen-crashes, storage-not-detected, boot-device-not-found," crlf)
-  (printout t "  slow-storage-access" crlf))
-
-(defrule suggest-next-steps
-  "Rule 22: After diagnosis, suggest verification steps for high-confidence conclusions"
-  (declare (salience -15))
-  (diagnostic-conclusion (scenario-id ?id) (confidence strong))
-  =>
-  (printout t "  [High confidence] Consider verifying with hardware swap test." crlf))
+  (assert (prompt-shown (type no-evidence)))
+  (printout t "No evidence reported yet." crlf)
+  (printout t "Assert symptoms with certainty factors, for example:" crlf)
+  (printout t "  (assert (reported-symptom (symptom-id no-power-at-all) (observed yes) (user-cf 0.9)))" crlf)
+  (printout t "Assert fuzzy readings, for example:" crlf)
+  (printout t "  (assert (sensor-reading (name cpu-temperature) (value 95)))" crlf)
+  (printout t "Valid symptom ids are the same 15 ids shown by run-diagnosis." crlf))
